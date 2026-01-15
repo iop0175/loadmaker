@@ -105,7 +105,7 @@ export function useGameState(): GameStateReturn {
   vehiclesRef.current = vehicles;
 
   const [intersections, setIntersections] = useState<Intersection[]>([]);
-  const [score, setScore] = useState(500);
+  const [score, setScore] = useState(1000);
   const [gameTime, setGameTime] = useState(0);
   const [bridgeCount, setBridgeCount] = useState(1);
   const [highwayCount, setHighwayCount] = useState(1);
@@ -130,7 +130,7 @@ export function useGameState(): GameStateReturn {
     setVehicles([]);
     setIntersections([]);
     
-    setScore(500);
+    setScore(1000);
     setGameTime(0);
     setBridgeCount(1);
     setHighwayCount(1);
@@ -157,8 +157,10 @@ export function useGameState(): GameStateReturn {
     }
   }, [destroyedCount, isGameOver]);
 
-  // 점수에 따른 건물 추가 생성
+  // 시간에 따른 건물 추가 생성
   useEffect(() => {
+    if (isGameOver || isPaused) return;
+    
     const basePairsCount = buildings.filter(b => !b.id.split('-')[2] && b.id.includes('home')).length;
 
     // 레벨 3 -> 맵 확장
@@ -166,12 +168,14 @@ export function useGameState(): GameStateReturn {
       setMapSize({ width: 1000, height: 750 });
     }
 
-    const LEVEL_THRESHOLDS = [1000, 3000, 6000, 10000];
+    // 시간 기반 건물 생성 (초 단위)
+    // 60초마다 새 건물 쌍 추가 (최대 5쌍까지)
+    const TIME_THRESHOLDS = [60, 120, 180, 240]; // 1분, 2분, 3분, 4분
     
     if (basePairsCount < 5) {
       if (basePairsCount > 0) {
-        const nextThreshold = LEVEL_THRESHOLDS[basePairsCount - 1];
-        if (score >= nextThreshold) {
+        const nextThreshold = TIME_THRESHOLDS[basePairsCount - 1];
+        if (gameTime >= nextThreshold) {
           const newPair = generateBuildingPair(
             basePairsCount,
             buildings,
@@ -184,10 +188,11 @@ export function useGameState(): GameStateReturn {
         }
       }
     } else {
-      const baseScore = 10000;
-      const extraScore = Math.max(0, score - baseScore);
+      // 5쌍 이후에는 2분마다 집 추가, 4분마다 회사 추가
+      const baseTime = 240; // 4분 기준
+      const extraTime = Math.max(0, gameTime - baseTime);
       
-      const targetHomes = 5 + Math.floor(extraScore / 5000);
+      const targetHomes = 5 + Math.floor(extraTime / 120); // 2분마다 집 1개
       const currentHomes = buildings.filter(b => b.id.includes('home')).length;
       
       if (targetHomes > currentHomes) {
@@ -203,7 +208,7 @@ export function useGameState(): GameStateReturn {
         setBuildings(prev => [...prev, newHome]);
       }
       
-      const targetOffices = 5 + Math.floor(extraScore / 10000);
+      const targetOffices = 5 + Math.floor(extraTime / 240); // 4분마다 회사 1개
       const currentOffices = buildings.filter(b => b.id.includes('office')).length;
       
       if (targetOffices > currentOffices) {
@@ -226,7 +231,7 @@ export function useGameState(): GameStateReturn {
         }
       }
     }
-  }, [score, buildings, riverSegments, mapSize, roads]);
+  }, [gameTime, buildings, riverSegments, mapSize, roads, isGameOver, isPaused]);
 
   // 건물 비활성화 체크
   useEffect(() => {

@@ -9,7 +9,7 @@
  * - 차량이 집 → 회사 → 집 사이클 완료 시 점수 획득
  */
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { 
   VEHICLE_SIZE,
   MAX_VEHICLES_PER_HOME,
@@ -34,7 +34,10 @@ import {
 
 const RoadGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(1); // 최소 1 (100%), 최대 3 (300%)
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 }); // 맵 이동 오프셋
+  const [isPanning, setIsPanning] = useState(false);
+  const lastPanPosRef = useRef({ x: 0, y: 0 });
 
   // 게임 상태 훅
   const gameState = useGameState();
@@ -91,7 +94,6 @@ const RoadGame: React.FC = () => {
     setHighwayCount,
     trafficLightCount,
     setTrafficLightCount,
-    zoom,
     language,
     showWarning,
   });
@@ -108,8 +110,55 @@ const RoadGame: React.FC = () => {
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
     deleteRoad,
   } = roadDrawing;
+
+  // 마우스 휠로 줌 조절
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom(prev => Math.max(1, Math.min(3, prev + delta)));
+  }, []);
+
+  // 휠 클릭으로 패닝 시작
+  const handleContainerMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // 중간 버튼 (휠 클릭)
+    if (e.button === 1) {
+      e.preventDefault();
+      setIsPanning(true);
+      lastPanPosRef.current = { x: e.clientX, y: e.clientY };
+    }
+  }, []);
+
+  // 패닝 중 이동
+  const handleContainerMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isPanning) return;
+    
+    const dx = e.clientX - lastPanPosRef.current.x;
+    const dy = e.clientY - lastPanPosRef.current.y;
+    
+    setPanOffset(prev => ({
+      x: prev.x + dx,
+      y: prev.y + dy,
+    }));
+    
+    lastPanPosRef.current = { x: e.clientX, y: e.clientY };
+  }, [isPanning]);
+
+  // 패닝 종료
+  const handleContainerMouseUp = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
+  // 패닝 리셋 (zoom이 1일 때)
+  useEffect(() => {
+    if (zoom === 1) {
+      setPanOffset({ x: 0, y: 0 });
+    }
+  }, [zoom]);
 
   // 차량 로직 훅
   useVehicleLogic({
@@ -132,21 +181,6 @@ const RoadGame: React.FC = () => {
     doesRoadIntersectAnyBuilding,
   } = useCollision(riverSegments, roads, buildings);
 
-  // 휠 이벤트 - 줌 처리
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const scaleAmount = -e.deltaY * 0.001;
-      setZoom(prev => Math.min(Math.max(0.5, prev + scaleAmount), 3));
-    };
-
-    canvas.addEventListener('wheel', onWheel, { passive: false });
-    return () => canvas.removeEventListener('wheel', onWheel);
-  }, []);
-
   // 캔버스 렌더링
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -155,7 +189,7 @@ const RoadGame: React.FC = () => {
     if (!ctx) return;
 
     ctx.save();
-    ctx.scale(zoom, zoom);
+    // CSS transform으로 줌 처리하므로 캔버스 스케일은 1로 유지
 
     // 배경
     ctx.fillStyle = '#f5f5f4';
@@ -163,43 +197,65 @@ const RoadGame: React.FC = () => {
 
     // 강 렌더링
     if (riverSegments.length > 0) {
+      // 강의 방향 감지 (수직 vs 수평)
+      const firstSeg = riverSegments[0];
+      const lastSeg = riverSegments[riverSegments.length - 1];
+      const deltaX = Math.abs(lastSeg.x - firstSeg.x);
+      const deltaY = Math.abs(lastSeg.y - firstSeg.y);
+      const isVertical = deltaY > deltaX;
+
       ctx.fillStyle = '#7dd3fc';
       ctx.beginPath();
-      ctx.moveTo(riverSegments[0].x, riverSegments[0].y - riverSegments[0].width / 2);
-      for (let i = 1; i < riverSegments.length; i++) {
-        ctx.lineTo(riverSegments[i].x, riverSegments[i].y - riverSegments[i].width / 2);
-      }
-      for (let i = riverSegments.length - 1; i >= 0; i--) {
-        ctx.lineTo(riverSegments[i].x, riverSegments[i].y + riverSegments[i].width / 2);
+      
+      if (isVertical) {
+        // 수직 강: 좌우로 폭 적용
+        ctx.moveTo(riverSegments[0].x - riverSegments[0].width / 2, riverSegments[0].y);
+        for (let i = 1; i < riverSegments.length; i++) {
+          ctx.lineTo(riverSegments[i].x - riverSegments[i].width / 2, riverSegments[i].y);
+        }
+        for (let i = riverSegments.length - 1; i >= 0; i--) {
+          ctx.lineTo(riverSegments[i].x + riverSegments[i].width / 2, riverSegments[i].y);
+        }
+      } else {
+        // 수평 강: 위아래로 폭 적용
+        ctx.moveTo(riverSegments[0].x, riverSegments[0].y - riverSegments[0].width / 2);
+        for (let i = 1; i < riverSegments.length; i++) {
+          ctx.lineTo(riverSegments[i].x, riverSegments[i].y - riverSegments[i].width / 2);
+        }
+        for (let i = riverSegments.length - 1; i >= 0; i--) {
+          ctx.lineTo(riverSegments[i].x, riverSegments[i].y + riverSegments[i].width / 2);
+        }
       }
       ctx.closePath();
       ctx.fill();
-
-      // 강 하이라이트
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([10, 15]);
-      ctx.beginPath();
-      ctx.moveTo(riverSegments[0].x + 20, riverSegments[0].y);
-      for (let i = 1; i < riverSegments.length; i++) {
-        ctx.lineTo(riverSegments[i].x, riverSegments[i].y);
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
 
       // 강 테두리
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(riverSegments[0].x, riverSegments[0].y - riverSegments[0].width / 2);
-      for (let i = 1; i < riverSegments.length; i++) {
-        ctx.lineTo(riverSegments[i].x, riverSegments[i].y - riverSegments[i].width / 2);
+      if (isVertical) {
+        ctx.moveTo(riverSegments[0].x - riverSegments[0].width / 2, riverSegments[0].y);
+        for (let i = 1; i < riverSegments.length; i++) {
+          ctx.lineTo(riverSegments[i].x - riverSegments[i].width / 2, riverSegments[i].y);
+        }
+      } else {
+        ctx.moveTo(riverSegments[0].x, riverSegments[0].y - riverSegments[0].width / 2);
+        for (let i = 1; i < riverSegments.length; i++) {
+          ctx.lineTo(riverSegments[i].x, riverSegments[i].y - riverSegments[i].width / 2);
+        }
       }
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(riverSegments[0].x, riverSegments[0].y + riverSegments[0].width / 2);
-      for (let i = 1; i < riverSegments.length; i++) {
-        ctx.lineTo(riverSegments[i].x, riverSegments[i].y + riverSegments[i].width / 2);
+      if (isVertical) {
+        ctx.moveTo(riverSegments[0].x + riverSegments[0].width / 2, riverSegments[0].y);
+        for (let i = 1; i < riverSegments.length; i++) {
+          ctx.lineTo(riverSegments[i].x + riverSegments[i].width / 2, riverSegments[i].y);
+        }
+      } else {
+        ctx.moveTo(riverSegments[0].x, riverSegments[0].y + riverSegments[0].width / 2);
+        for (let i = 1; i < riverSegments.length; i++) {
+          ctx.lineTo(riverSegments[i].x, riverSegments[i].y + riverSegments[i].width / 2);
+        }
       }
       ctx.stroke();
     }
@@ -382,10 +438,19 @@ const RoadGame: React.FC = () => {
       const isInvalid = overlapsRoad || overlapsBuilding;
       let previewColor = isInvalid ? 'rgba(239, 68, 68, 0.6)' : 'rgba(66, 133, 244, 0.5)';
       
+      // 비용 계산
+      const dist = distance(drawStart, currentEnd);
+      let cost = Math.ceil(dist);
+      let isBridge = false;
+      
       if (!isInvalid && crossesRiver) {
-        previewColor = bridgeCount > 0 
-          ? 'rgba(210, 180, 140, 0.8)' 
-          : 'rgba(239, 68, 68, 0.6)';
+        if (activeTool === 'bridge' && bridgeCount > 0) {
+          previewColor = 'rgba(210, 180, 140, 0.8)';
+          cost = 0;
+          isBridge = true;
+        } else {
+          previewColor = 'rgba(239, 68, 68, 0.6)';
+        }
       }
 
       ctx.strokeStyle = previewColor;
@@ -398,6 +463,28 @@ const RoadGame: React.FC = () => {
         ctx.lineTo(currentEnd.x, currentEnd.y);
       }
       ctx.stroke();
+
+      // 비용 표시
+      if (dist > 10) {
+        const midX = (drawStart.x + currentEnd.x) / 2;
+        const midY = (drawStart.y + currentEnd.y) / 2;
+        
+        // 배경
+        const costText = isBridge ? 'FREE' : `${cost}`;
+        ctx.font = 'bold 14px system-ui';
+        const textWidth = ctx.measureText(costText).width;
+        
+        ctx.fillStyle = isInvalid ? 'rgba(239, 68, 68, 0.9)' : (score >= cost ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)');
+        ctx.beginPath();
+        ctx.roundRect(midX - textWidth / 2 - 8, midY - 12, textWidth + 16, 24, 6);
+        ctx.fill();
+        
+        // 텍스트
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(costText, midX, midY);
+      }
 
       if (controlPoint) {
         ctx.fillStyle = 'rgba(66, 133, 244, 0.8)';
@@ -439,12 +526,12 @@ const RoadGame: React.FC = () => {
         ctx.fill();
         ctx.stroke();
         
-        // 집 아이콘 (🏠)
-        ctx.font = '14px system-ui';
+        // 집 표시 (H = Home)
+        ctx.font = 'bold 16px system-ui';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText('🏠', cx, cy);
+        ctx.fillText('H', cx, cy);
         
         // 상태 표시 (차량 수)
         ctx.textAlign = 'center';
@@ -486,12 +573,12 @@ const RoadGame: React.FC = () => {
         ctx.lineWidth = 2;
         ctx.strokeRect(cx - buildingWidth/2, cy - buildingHeight/2, buildingWidth, buildingHeight);
 
-        // 회사 아이콘 (🏢)
-        ctx.font = '16px system-ui';
+        // 회사 표시 (W = Work)
+        ctx.font = 'bold 16px system-ui';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText('🏢', cx, cy - 5);
+        ctx.fillText('W', cx, cy - 5);
         
         // 상태 표시
         ctx.textAlign = 'center';
@@ -501,7 +588,7 @@ const RoadGame: React.FC = () => {
         const parkedCount = vehicles.filter(v => v.toBuilding === building.id && v.status === 'at-office').length;
         
         ctx.fillStyle = '#1f2937';
-        ctx.fillText(`🅿️ ${parkedCount}/${MAX_VEHICLES_PER_OFFICE}`, cx, cy - buildingHeight/2 - 4);
+        ctx.fillText(`P ${parkedCount}/${MAX_VEHICLES_PER_OFFICE}`, cx, cy - buildingHeight/2 - 4);
 
         if (timeLeft < 30000) {
           const ringY = cy - buildingHeight/2 - 16;
@@ -553,71 +640,166 @@ const RoadGame: React.FC = () => {
   ]);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-8 font-sans">
-      {/* Header */}
-      <Header
-        score={score}
-        gameTime={gameTime}
-        destroyedCount={destroyedCount}
-        language={language}
-        onLanguageChange={setLanguage}
-      />
-
-      {/* Toolbar */}
-      <Toolbar
-        isPaused={isPaused}
-        gameSpeed={gameSpeed}
-        isOrthoMode={isOrthoMode}
-        isCurveMode={isCurveMode}
-        language={language}
-        onNewGame={startNewGame}
-        onTogglePause={() => setIsPaused(prev => !prev)}
-        onToggleSpeed={() => setGameSpeed(prev => prev === 1 ? 2 : 1)}
-      />
-
-      {/* 캔버스 */}
-      <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/50 ring-1 ring-slate-200/50 max-w-full max-h-[80vh] relative bg-slate-100">
-        <canvas
-          ref={canvasRef}
-          width={mapSize.width * zoom}
-          height={mapSize.height * zoom}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-          className="cursor-crosshair bg-white"
-        />
+    <div className="h-auto min-h-screen min-h-dvh sm:min-h-screen bg-slate-50 flex flex-col landscape-mode items-center justify-start sm:justify-center p-2 sm:p-4 md:p-8 font-sans overflow-visible pb-safe">
+      {/* 가로 모드 사이드바 - 왼쪽 */}
+      <div className="hidden landscape-sidebar">
+        {/* 미니 스탯 */}
+        <div className="flex flex-col gap-1">
+          <div className="bg-white rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-center">
+            <span className="text-[10px] text-emerald-500">$</span>
+            <div className="text-sm font-bold text-emerald-600">{score}</div>
+          </div>
+          <div className="bg-white rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-center">
+            <span className="text-[10px] text-indigo-500">T</span>
+            <div className="text-sm font-bold text-indigo-600">{Math.floor(gameTime / 60)}:{String(gameTime % 60).padStart(2, '0')}</div>
+          </div>
+          <div className="bg-white rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-center">
+            <span className="text-[10px] text-rose-500">💥</span>
+            <div className={`text-sm font-bold ${destroyedCount > 0 ? 'text-rose-500' : 'text-slate-600'}`}>{destroyedCount}/3</div>
+          </div>
+        </div>
         
-        {/* 경고 메시지 */}
-        <WarningMessage message={warningMessage} />
-        
-        {/* 도로 선택 팝오버 */}
-        {selectedRoad && (
-          <RoadPopover
-            road={selectedRoad}
-            zoom={zoom}
-            language={language}
-            onEdit={() => showWarning('Feature coming soon')}
-            onDelete={() => deleteRoad(selectedRoad)}
-            onClose={() => setSelectedRoad(null)}
-          />
-        )}
-        
-        {/* 게임 오버 오버레이 */}
-        {isGameOver && (
-          <GameOverOverlay
-            score={score}
-            gameTime={gameTime}
-            destroyedCount={destroyedCount}
-            language={language}
-            onPlayAgain={startNewGame}
-          />
-        )}
+        {/* 미니 컨트롤 */}
+        <div className="flex flex-col gap-1">
+          <button 
+            onClick={startNewGame}
+            className="p-2 bg-blue-600 text-white rounded-lg text-xs font-bold"
+          >
+            🔄
+          </button>
+          <button 
+            onClick={() => setIsPaused(prev => !prev)}
+            className={`p-2 rounded-lg text-xs font-bold ${isPaused ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            {isPaused ? 'Play' : 'II'}
+          </button>
+          <button 
+            onClick={() => setGameSpeed(prev => prev === 1 ? 2 : 1)}
+            className={`p-2 rounded-lg text-xs font-bold ${gameSpeed === 2 ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            {gameSpeed}x
+          </button>
+        </div>
       </div>
 
-      {/* 교차점 표시 */}
+      {/* 세로 모드 헤더 */}
+      <div className="landscape-hide w-full flex justify-center px-2">
+        <Header
+          score={score}
+          gameTime={gameTime}
+          destroyedCount={destroyedCount}
+          language={language}
+          onLanguageChange={setLanguage}
+        />
+      </div>
+
+      {/* Toolbar - 세로 모드만 */}
+      <div className="landscape-hide w-full flex justify-center px-2">
+        <Toolbar
+          isPaused={isPaused}
+          gameSpeed={gameSpeed}
+          isOrthoMode={isOrthoMode}
+          isCurveMode={isCurveMode}
+          language={language}
+          onNewGame={startNewGame}
+          onTogglePause={() => setIsPaused(prev => !prev)}
+          onToggleSpeed={() => setGameSpeed(prev => prev === 1 ? 2 : 1)}
+        />
+      </div>
+
+      {/* 메인 게임 영역 */}
+      <div 
+        className="landscape-main flex-1 flex items-center justify-center min-h-0 overflow-hidden"
+        onWheel={handleWheel}
+        onMouseDown={handleContainerMouseDown}
+        onMouseMove={handleContainerMouseMove}
+        onMouseUp={handleContainerMouseUp}
+        onMouseLeave={handleContainerMouseUp}
+      >
+        {/* 캔버스 컨테이너 */}
+        <div 
+          className="rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl border border-white/50 ring-1 ring-slate-200/50 max-w-full max-h-[60vh] sm:max-h-[70vh] md:max-h-[80vh] landscape-canvas relative bg-slate-100"
+          style={{
+            width: mapSize.width,
+            height: mapSize.height,
+            transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
+            transformOrigin: 'center center',
+            cursor: isPanning ? 'grabbing' : 'default',
+          }}
+        >
+          <canvas
+            ref={canvasRef}
+            width={mapSize.width}
+            height={mapSize.height}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className="cursor-crosshair bg-white touch-none"
+            style={{ width: mapSize.width, height: mapSize.height }}
+          />
+          
+          {/* 줌 컨트롤 */}
+          <div className="absolute bottom-3 right-3 flex flex-col gap-2 z-20">
+            <button
+              onClick={() => setZoom(prev => Math.min(3, prev + 0.25))}
+              className="w-10 h-10 rounded-lg bg-white/90 backdrop-blur shadow-lg border border-slate-200 flex items-center justify-center text-slate-700 hover:bg-slate-100 active:bg-slate-200 font-bold text-xl"
+              title="Zoom In"
+            >
+              +
+            </button>
+            <div className="text-center text-xs font-medium text-slate-600 bg-white/90 rounded px-1 py-0.5">
+              {Math.round(zoom * 100)}%
+            </div>
+            <button
+              onClick={() => setZoom(prev => Math.max(1, prev - 0.25))}
+              disabled={zoom <= 1}
+              className={`w-10 h-10 rounded-lg bg-white/90 backdrop-blur shadow-lg border border-slate-200 flex items-center justify-center font-bold text-xl ${
+                zoom <= 1 
+                  ? 'text-slate-300 cursor-not-allowed' 
+                  : 'text-slate-700 hover:bg-slate-100 active:bg-slate-200'
+              }`}
+              title="Zoom Out"
+            >
+              -
+            </button>
+          </div>
+          
+          {/* 경고 메시지 */}
+          <WarningMessage message={warningMessage} />
+          
+          {/* 도로 선택 팝오버 */}
+          {selectedRoad && (
+            <RoadPopover
+              road={selectedRoad}
+              mapWidth={mapSize.width}
+              mapHeight={mapSize.height}
+              language={language}
+              onEdit={() => showWarning('Feature coming soon')}
+              onDelete={() => deleteRoad(selectedRoad)}
+              onClose={() => setSelectedRoad(null)}
+            />
+          )}
+          
+          {/* 게임 오버 오버레이 */}
+          {isGameOver && (
+            <GameOverOverlay
+              score={score}
+              gameTime={gameTime}
+              destroyedCount={destroyedCount}
+              language={language}
+              onPlayAgain={startNewGame}
+            />
+        )}
+        </div>
+      </div>
+
+      {/* 교차점 표시 - 세로 모드에서만 */}
       {intersections.length > 0 && (
-        <div className="mt-6 text-sm">
+        <div className="hidden sm:block landscape-hide mt-4 sm:mt-6 text-sm">
           <span className="inline-flex items-center gap-2 bg-white/60 backdrop-blur-md border border-white/50 rounded-full px-4 py-1.5 text-slate-600 shadow-sm ring-1 ring-slate-200/50">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
@@ -628,15 +810,63 @@ const RoadGame: React.FC = () => {
         </div>
       )}
 
-      {/* HUD */}
-      <HUD
-        activeTool={activeTool}
-        bridgeCount={bridgeCount}
-        highwayCount={highwayCount}
-        trafficLightCount={trafficLightCount}
-        language={language}
-        onToolChange={setActiveTool}
-      />
+      {/* HUD - 세로 모드 */}
+      <div className="landscape-hide w-full flex justify-center">
+        <HUD
+          activeTool={activeTool}
+          bridgeCount={bridgeCount}
+          highwayCount={highwayCount}
+          trafficLightCount={trafficLightCount}
+          language={language}
+          onToolChange={setActiveTool}
+        />
+      </div>
+
+      {/* HUD - 가로 모드 (오른쪽 사이드바) */}
+      <div className="hidden landscape-sidebar">
+        <div className="flex flex-col gap-1">
+          {/* 도구 버튼들 */}
+          <button
+            onClick={() => setActiveTool('normal')}
+            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold ${
+              activeTool === 'normal' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 border border-slate-200'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2z" /></svg>
+            <span>도로</span>
+          </button>
+          <button
+            onClick={() => setActiveTool('bridge')}
+            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold relative ${
+              activeTool === 'bridge' ? 'bg-amber-600 text-white' : 'bg-white text-slate-400 border border-slate-200'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
+            <span>다리</span>
+            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">{bridgeCount}</span>
+          </button>
+          <button
+            onClick={() => setActiveTool('highway')}
+            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold relative ${
+              activeTool === 'highway' ? 'bg-sky-500 text-white' : 'bg-white text-slate-400 border border-slate-200'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            <span>고속</span>
+            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">{highwayCount}</span>
+          </button>
+          <button
+            onClick={() => setActiveTool('traffic-light')}
+            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold relative ${
+              activeTool === 'traffic-light' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-400 border border-slate-200'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="8" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="16" r="2" /><rect x="9" y="4" width="6" height="16" rx="1" /></svg>
+            <span>신호</span>
+            <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">{trafficLightCount}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };

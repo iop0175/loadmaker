@@ -46,6 +46,41 @@ export function useIntersections() {
     });
   }, []);
 
+  /** 점이 건물 근처(연결점)에 있는지 확인 - 더 넓은 범위 */
+  const isNearBuilding = useCallback((point: Point, buildings: Building[]): boolean => {
+    return buildings.some(building => {
+      const isHome = building.id.includes('-home');
+      const width = isHome ? 36 : 40;
+      const height = isHome ? 50 : 50;
+      
+      // 건물 영역 + 30px 여백 (도로 연결점 포함)
+      const left = building.position.x - width / 2 - 30;
+      const right = building.position.x + width / 2 + 30;
+      const top = building.position.y - height / 2 - 30;
+      const bottom = building.position.y + height / 2 + 30;
+      
+      return point.x >= left && point.x <= right && point.y >= top && point.y <= bottom;
+    });
+  }, []);
+
+  /** 점이 다리 끝점인지 확인 */
+  const isBridgeEndpoint = useCallback((point: Point, roads: Road[]): boolean => {
+    // 다리 도로들 찾기 (isBridge로 확인)
+    const bridges = roads.filter(r => r.isBridge);
+    
+    // 이 점에서 다리가 시작하거나 끝나는지 확인
+    const hasBridgeConnection = bridges.some(bridge => 
+      distance(bridge.start, point) < 1 || distance(bridge.end, point) < 1
+    );
+    
+    // 다리와 연결된 점이면 무조건 교차로가 아님
+    if (hasBridgeConnection) {
+      return true;
+    }
+    
+    return false;
+  }, []);
+
   /** 교차점 찾기 (끝점 교차 + 중간 교차) */
   const findIntersections = useCallback((roadList: Road[], buildings: Building[] = []): Intersection[] => {
     const points = new Map<string, number>();
@@ -92,9 +127,13 @@ export function useIntersections() {
           }
         }
 
-        // 건물 위의 점은 교차로로 취급하지 않음
-        if (!isPointOnBuilding({ x, y }, buildings)) {
-          result.push({ point: { x, y }, vehicleCount: 0 });
+        // 건물 위 또는 건물 근처(연결점)의 점은 교차로로 취급하지 않음
+        // 다리 끝점도 교차로로 취급하지 않음 (다리와 첫 연결 도로)
+        const pointObj = { x, y };
+        if (!isPointOnBuilding(pointObj, buildings) && 
+            !isNearBuilding(pointObj, buildings) && 
+            !isBridgeEndpoint(pointObj, roadList)) {
+          result.push({ point: pointObj, vehicleCount: 0 });
         }
       }
     });
@@ -110,7 +149,7 @@ export function useIntersections() {
             road1.start, road1.end,
             road2.start, road2.end
           );
-          if (intersection && !isPointOnBuilding(intersection, buildings)) {
+          if (intersection && !isPointOnBuilding(intersection, buildings) && !isNearBuilding(intersection, buildings)) {
             if (!result.some(r => 
               Math.abs(r.point.x - intersection.x) < 5 && 
               Math.abs(r.point.y - intersection.y) < 5
@@ -123,7 +162,7 @@ export function useIntersections() {
     }
     
     return result;
-  }, [getLineIntersection, isPointOnBuilding]);
+  }, [getLineIntersection, isPointOnBuilding, isNearBuilding, isBridgeEndpoint]);
 
   return {
     getLineIntersection,

@@ -10,7 +10,8 @@ import { getTranslations } from '../../i18n';
 
 interface RoadPopoverProps {
   road: Road;
-  zoom: number;
+  mapWidth: number;
+  mapHeight: number;
   language: Language;
   onEdit: () => void;
   onDelete: () => void;
@@ -19,7 +20,8 @@ interface RoadPopoverProps {
 
 export const RoadPopover: React.FC<RoadPopoverProps> = ({
   road,
-  zoom,
+  mapWidth,
+  mapHeight,
   language,
   onEdit,
   onDelete,
@@ -27,7 +29,7 @@ export const RoadPopover: React.FC<RoadPopoverProps> = ({
 }) => {
   const t = getTranslations(language);
   
-  // 팝오버 위치 계산
+  // 팝오버 위치 계산 (백분율로 변환)
   let cx, cy;
   if (road.controlPoint) {
     const _t = 0.5;
@@ -38,10 +40,14 @@ export const RoadPopover: React.FC<RoadPopoverProps> = ({
     cy = (road.start.y + road.end.y) / 2;
   }
   
+  // 백분율로 변환 (캔버스 스케일링에 관계없이 정확한 위치)
+  const leftPercent = (cx / mapWidth) * 100;
+  const topPercent = (cy / mapHeight) * 100;
+  
   return (
     <div 
       className="absolute z-10 p-2 pointer-events-none" 
-      style={{ left: cx * zoom, top: cy * zoom, transform: 'translate(-50%, -100%)' }}
+      style={{ left: `${leftPercent}%`, top: `${topPercent}%`, transform: 'translate(-50%, -100%)' }}
     >
       <div className="flex bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden divide-x divide-slate-100 pointer-events-auto">
         <button 
