@@ -114,131 +114,60 @@ export function interpolatePath(path: Point[], roads: Road[]): Point[] {
 
 // ============ 강 생성 유틸리티 ============
 
-/** Catmull-Rom 스플라인을 통한 부드러운 곡선 보간 */
-function catmullRomSpline(
-  p0: Point, p1: Point, p2: Point, p3: Point, 
-  t: number
-): Point {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  
-  return {
-    x: 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + 
-        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + 
-        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
-    y: 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + 
-        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + 
-        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3)
-  };
-}
-
-/** 랜덤 강 생성 (부드러운 곡선) - 맵 크기 반영 */
+/** 랜덤 강 생성 (부드러운 굴곡) - 맵 크기 반영, 끊김 방지 */
 export function generateRandomRiver(width: number = CANVAS_WIDTH, height: number = CANVAS_HEIGHT): RiverSegment[] {
-  const direction = Math.floor(Math.random() * 3);
+  // 0: 수평, 1: 수직
+  const direction = Math.floor(Math.random() * 2);
   
-  const controlPoints: { x: number; y: number; width: number }[] = [];
+  const segments: RiverSegment[] = [];
+  const riverWidth = RIVER_MIN_WIDTH + Math.random() * (RIVER_MAX_WIDTH - RIVER_MIN_WIDTH);
+  
+  // 세그먼트 수 (충분히 많게 해서 부드럽게)
+  const numSegments = 50;
+  
+  // 굴곡 정도 (사인파 진폭)
+  const amplitude = 30 + Math.random() * 30; // 30~60px
+  const frequency = 1 + Math.random(); // 1~2 사이클
   
   if (direction === 0) {
-    // 수평 강
-    const baseY = height * 0.25 + Math.random() * (height * 0.5);
-    let currentY = baseY;
+    // 수평 강 (왼쪽→오른쪽) - 부드러운 사인파 굴곡
+    const baseY = height * 0.35 + Math.random() * (height * 0.3);
     
-    const numPoints = 4 + Math.floor(Math.random() * 3);
-    for (let i = 0; i <= numPoints; i++) {
-      const x = (i / numPoints) * width;
-      currentY += (Math.random() - 0.5) * 80;
-      currentY = Math.max(80, Math.min(height - 80, currentY));
-      controlPoints.push({ 
+    for (let i = 0; i <= numSegments; i++) {
+      const t = i / numSegments;
+      const x = t * width;
+      const waveOffset = Math.sin(t * Math.PI * frequency * 2) * amplitude;
+      const y = baseY + waveOffset;
+      
+      segments.push({ 
         x, 
-        y: currentY, 
-        width: RIVER_MIN_WIDTH + Math.random() * (RIVER_MAX_WIDTH - RIVER_MIN_WIDTH) 
-      });
-    }
-  } else if (direction === 1) {
-    // 수직 강
-    const baseX = width * 0.25 + Math.random() * (width * 0.5);
-    let currentX = baseX;
-    
-    const numPoints = 4 + Math.floor(Math.random() * 3);
-    for (let i = 0; i <= numPoints; i++) {
-      const y = (i / numPoints) * height;
-      currentX += (Math.random() - 0.5) * 80;
-      currentX = Math.max(80, Math.min(width - 80, currentX));
-      controlPoints.push({ 
-        x: currentX, 
-        y, 
-        width: RIVER_MIN_WIDTH + Math.random() * (RIVER_MAX_WIDTH - RIVER_MIN_WIDTH) 
+        y: Math.max(riverWidth / 2 + 10, Math.min(height - riverWidth / 2 - 10, y)), 
+        width: riverWidth 
       });
     }
   } else {
-    // 대각선 강
-    const startTop = Math.random() > 0.5;
-    const numPoints = 5 + Math.floor(Math.random() * 3);
+    // 수직 강 (위→아래) - 부드러운 사인파 굴곡
+    const baseX = width * 0.35 + Math.random() * (width * 0.3);
     
-    for (let i = 0; i <= numPoints; i++) {
-      const t = i / numPoints;
-      let x = t * width;
-      let y: number;
+    for (let i = 0; i <= numSegments; i++) {
+      const t = i / numSegments;
+      const y = t * height;
+      const waveOffset = Math.sin(t * Math.PI * frequency * 2) * amplitude;
+      const x = baseX + waveOffset;
       
-      if (startTop) {
-        y = 50 + t * (height - 100);
-        y += Math.sin(t * Math.PI * 2) * 80;
-      } else {
-        y = height - 50 - t * (height - 100);
-        y += Math.sin(t * Math.PI * 2) * 80;
-      }
-      
-      x += (Math.random() - 0.5) * 40;
-      y += (Math.random() - 0.5) * 40;
-      
-      x = Math.max(0, Math.min(width, x));
-      y = Math.max(50, Math.min(height - 50, y));
-      
-      controlPoints.push({ 
-        x, 
+      segments.push({ 
+        x: Math.max(riverWidth / 2 + 10, Math.min(width - riverWidth / 2 - 10, x)), 
         y, 
-        width: RIVER_MIN_WIDTH + Math.random() * (RIVER_MAX_WIDTH - RIVER_MIN_WIDTH) 
+        width: riverWidth 
       });
     }
   }
-  
-  if (controlPoints.length < 3) {
-    return [
-      { x: 0, y: height/2, width: 50 }, 
-      { x: width/2, y: height/2 + 20, width: 55 },
-      { x: width, y: height/2 - 20, width: 50 }
-    ];
-  }
-  
-  const segments: RiverSegment[] = [];
-  const samplesPerSegment = 5; 
-  
-  for (let i = 0; i < controlPoints.length - 1; i++) {
-    const p0 = controlPoints[Math.max(0, i - 1)];
-    const p1 = controlPoints[i];
-    const p2 = controlPoints[Math.min(controlPoints.length - 1, i + 1)];
-    const p3 = controlPoints[Math.min(controlPoints.length - 1, i + 2)];
-    
-    for (let j = 0; j < samplesPerSegment; j++) {
-      const t = j / samplesPerSegment;
-      const point = catmullRomSpline(p0, p1, p2, p3, t);
-      const widthSeg = p1.width + (p2.width - p1.width) * t;
-      
-      segments.push({ x: point.x, y: point.y, width: widthSeg });
-    }
-  }
-  
-  const last = controlPoints[controlPoints.length - 1];
-  segments.push({ x: last.x, y: last.y, width: last.width });
   
   return segments;
 }
 
-/** 점이 강 위에 있는지 확인 (정적 - 건물 배치용) */
-export function isPointInRiverStatic(point: Point, riverSegments: RiverSegment[]): boolean {
-  // 건물 여백 (강에서 최소 50px 떨어져야 함)
-  const buildingBuffer = 50;
-  
+/** 점이 강 위에 있는지 확인 (정적 - 건물/도로 배치용) */
+export function isPointInRiverStatic(point: Point, riverSegments: RiverSegment[], buffer: number = 50): boolean {
   for (let i = 0; i < riverSegments.length - 1; i++) {
     const seg1 = riverSegments[i];
     const seg2 = riverSegments[i + 1];
@@ -265,8 +194,8 @@ export function isPointInRiverStatic(point: Point, riverSegments: RiverSegment[]
     // 거리 계산
     const distToRiver = Math.sqrt((point.x - closestX) ** 2 + (point.y - closestY) ** 2);
     
-    // 강 너비의 절반 + 건물 여백 이내이면 충돌
-    if (distToRiver < riverWidth / 2 + buildingBuffer) {
+    // 강 너비의 절반 + 버퍼 이내이면 충돌
+    if (distToRiver < riverWidth / 2 + buffer) {
       return true;
     }
   }

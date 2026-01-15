@@ -27,10 +27,11 @@ export interface Building {
   name: string;
   lastActiveTime: number; // 마지막 활동 시간 (차량 생성/도착/보유)
   createdAt: number; // 생성 시간
+  wasActive?: boolean; // 한번이라도 활성화되었는지 (안전 시간 적용 여부)
 }
 
 /** 차량 상태 */
-export type VehicleStatus = 'going-to-office' | 'at-office' | 'going-home' | 'at-home';
+export type VehicleStatus = 'going-to-office' | 'at-office' | 'going-home' | 'at-home' | 'removed';
 
 /** 차량 */
 export interface Vehicle {
@@ -55,6 +56,9 @@ export interface Vehicle {
 export interface Intersection {
   point: Point;
   vehicleCount: number;
+  hasTrafficLight?: boolean; // 신호등 설치 여부
+  trafficLightPhase?: 'ns' | 'ew'; // 신호등 상태 (ns: 남북 통행, ew: 동서 통행)
+  phaseStartTime?: number; // 현재 신호 시작 시간
 }
 
 /** 강 세그먼트 */
