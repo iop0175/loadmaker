@@ -34,6 +34,12 @@ export function usePathfinding() {
   const findPath = useCallback((start: Point, end: Point, roadList: Road[]): Point[] | null => {
     if (roadList.length === 0) return null;
 
+    // 디버깅: 고가도로 개수 확인
+    const overpassRoads = roadList.filter(r => r.isOverpass);
+    if (overpassRoads.length > 0) {
+      console.log(`[Pathfinding] Total roads: ${roadList.length}, Overpasses: ${overpassRoads.length}`);
+    }
+
     const getNodeKey = (p: Point) => `${Math.round(p.x)},${Math.round(p.y)}`;
     const getPointFromKey = (key: string): Point => {
       const [x, y] = key.split(',').map(Number);

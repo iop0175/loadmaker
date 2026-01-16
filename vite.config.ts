@@ -9,7 +9,7 @@ export default defineConfig({
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // console.log 제거
+        drop_console: false, // 디버깅용 console.log 유지
         drop_debugger: true, // debugger 제거
       },
       format: {
