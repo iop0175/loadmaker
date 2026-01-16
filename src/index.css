@@ -10,12 +10,12 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   touch-action: pan-y;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
 }
 
 :root {
@@ -49,8 +49,7 @@ body {
 @media (max-width: 640px) {
   html, body {
     font-size: 14px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
   }
   
   /* 모바일 세로모드에서 더 컴팩트한 레이아웃 */
@@ -60,20 +59,31 @@ body {
     gap: 0.25rem !important;
   }
   
-  /* 모바일 세로모드에서 전체 높이 대신 자동 높이 */
+  /* 모바일 세로모드에서 전체 높이 */
   #root {
-    min-height: auto;
-    height: auto;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
 }
 
 /* 모바일 가로 모드 */
 @media (max-height: 500px) and (orientation: landscape) {
+  html, body, #root {
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
   .landscape-mode {
     flex-direction: row !important;
     padding: 4px !important;
     gap: 4px;
+    height: 100% !important;
+    max-height: 100% !important;
   }
   
   .landscape-hide {
@@ -87,6 +97,7 @@ body {
     height: 100%;
     min-width: 60px;
     max-width: 80px;
+    flex-shrink: 0;
   }
   
   .landscape-main {
@@ -96,7 +107,9 @@ body {
     align-items: center;
     justify-content: center;
     height: 100%;
+    max-height: 100%;
     overflow: hidden;
+    min-height: 0;
   }
   
   .landscape-canvas {
@@ -111,6 +124,11 @@ body {
     transform: translateY(-50%);
     flex-direction: column !important;
     margin: 0 !important;
+  }
+
+  /* 가로 모드에서 pb-safe 제거 */
+  .pb-safe {
+    padding-bottom: 0 !important;
   }
 }
 

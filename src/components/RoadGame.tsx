@@ -32,11 +32,31 @@ import {
   WarningMessage,
 } from './ui';
 
+// 모바일 감지 함수 - 화면 크기에 따라 초기 줌 설정
+const getInitialZoom = (): number => {
+  if (typeof window !== 'undefined') {
+    const { innerWidth, innerHeight } = window;
+    
+    // 가로 모드 (높이가 500px 미만) - 매우 작게 시작
+    if (innerHeight < 500) {
+      return 0.4;
+    }
+    // 모바일 세로 모드 (너비 768px 미만)
+    if (innerWidth < 768) {
+      return 0.5;
+    }
+    // 데스크톱
+    return 0.75;
+  }
+  return 0.75;
+};
+
 const RoadGame: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [zoom, setZoom] = useState(1); // 최소 1 (100%), 최대 3 (300%)
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(getInitialZoom); // 모바일: 40%, 데스크톱: 75%
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 }); // 맵 이동 오프셋
-  const [isPanning, setIsPanning] = useState(false);
+  const isPanningRef = useRef(false);
   const lastPanPosRef = useRef({ x: 0, y: 0 });
 
   // 게임 상태 훅
@@ -116,46 +136,127 @@ const RoadGame: React.FC = () => {
     deleteRoad,
   } = roadDrawing;
 
-  // 마우스 휠로 줌 조절
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom(prev => Math.max(1, Math.min(3, prev + delta)));
+  // 마우스 휠로 줌 조절 - useEffect로 non-passive 이벤트 등록
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoom(prev => Math.max(0.3, Math.min(1.5, prev + delta)));
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
   }, []);
 
-  // 휠 클릭으로 패닝 시작
+  // 패닝 시작 (휠 클릭 또는 pan 도구 선택 시 좌클릭)
   const handleContainerMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // 중간 버튼 (휠 클릭)
-    if (e.button === 1) {
+    // 중간 버튼 (휠 클릭) 또는 pan 도구 선택 시 좌클릭
+    if (e.button === 1 || (e.button === 0 && activeTool === 'pan')) {
       e.preventDefault();
-      setIsPanning(true);
+      isPanningRef.current = true;
       lastPanPosRef.current = { x: e.clientX, y: e.clientY };
     }
-  }, []);
+  }, [activeTool]);
+
+  // 패닝 범위 제한 함수
+  const clampPanOffset = useCallback((offset: { x: number; y: number }) => {
+    // 맵이 화면보다 클 때만 이동 허용
+    const scaledWidth = mapSize.width * zoom;
+    const scaledHeight = mapSize.height * zoom;
+    
+    // 최대 이동 범위 계산 (맵이 컨테이너보다 클 때만)
+    const maxX = Math.max(0, (scaledWidth - mapSize.width) / 2);
+    const maxY = Math.max(0, (scaledHeight - mapSize.height) / 2);
+    
+    return {
+      x: Math.max(-maxX, Math.min(maxX, offset.x)),
+      y: Math.max(-maxY, Math.min(maxY, offset.y)),
+    };
+  }, [mapSize, zoom]);
 
   // 패닝 중 이동
   const handleContainerMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isPanning) return;
+    if (!isPanningRef.current) return;
     
     const dx = e.clientX - lastPanPosRef.current.x;
     const dy = e.clientY - lastPanPosRef.current.y;
     
-    setPanOffset(prev => ({
+    setPanOffset(prev => clampPanOffset({
       x: prev.x + dx,
       y: prev.y + dy,
     }));
     
     lastPanPosRef.current = { x: e.clientX, y: e.clientY };
-  }, [isPanning]);
+  }, [clampPanOffset]);
 
   // 패닝 종료
   const handleContainerMouseUp = useCallback(() => {
-    setIsPanning(false);
+    isPanningRef.current = false;
   }, []);
 
-  // 패닝 리셋 (zoom이 1일 때)
+  // 모바일 터치 패닝 - useEffect로 non-passive 이벤트 등록
   useEffect(() => {
-    if (zoom === 1) {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (activeTool === 'pan' && e.touches.length === 1) {
+        e.preventDefault();
+        isPanningRef.current = true;
+        lastPanPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isPanningRef.current || e.touches.length !== 1) return;
+      e.preventDefault();
+      
+      const dx = e.touches[0].clientX - lastPanPosRef.current.x;
+      const dy = e.touches[0].clientY - lastPanPosRef.current.y;
+      
+      setPanOffset(prev => {
+        const newOffset = {
+          x: prev.x + dx,
+          y: prev.y + dy,
+        };
+        // 패닝 범위 제한
+        const scaledWidth = mapSize.width * zoom;
+        const scaledHeight = mapSize.height * zoom;
+        const maxX = Math.max(0, (scaledWidth - mapSize.width) / 2);
+        const maxY = Math.max(0, (scaledHeight - mapSize.height) / 2);
+        return {
+          x: Math.max(-maxX, Math.min(maxX, newOffset.x)),
+          y: Math.max(-maxY, Math.min(maxY, newOffset.y)),
+        };
+      });
+      
+      lastPanPosRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+
+    const handleTouchEnd = () => {
+      isPanningRef.current = false;
+    };
+
+    // passive: false로 이벤트 리스너 등록하여 preventDefault 가능하게
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [activeTool, mapSize, zoom]);
+
+  // 패닝 리셋 (zoom이 0.75 이하일 때)
+  useEffect(() => {
+    if (zoom <= 0.75) {
       setPanOffset({ x: 0, y: 0 });
     }
   }, [zoom]);
@@ -640,7 +741,7 @@ const RoadGame: React.FC = () => {
   ]);
 
   return (
-    <div className="h-auto min-h-screen min-h-dvh sm:min-h-screen bg-slate-50 flex flex-col landscape-mode items-center justify-start sm:justify-center p-2 sm:p-4 md:p-8 font-sans overflow-visible pb-safe">
+    <div className="h-screen h-dvh bg-slate-50 flex flex-col landscape-mode items-center justify-between p-1 sm:p-4 md:p-8 font-sans overflow-hidden pb-safe gap-1 sm:gap-2">
       {/* 가로 모드 사이드바 - 왼쪽 */}
       <div className="hidden landscape-sidebar">
         {/* 미니 스탯 */}
@@ -683,7 +784,7 @@ const RoadGame: React.FC = () => {
       </div>
 
       {/* 세로 모드 헤더 */}
-      <div className="landscape-hide w-full flex justify-center px-2">
+      <div className="landscape-hide w-full flex justify-center px-2 shrink-0">
         <Header
           score={score}
           gameTime={gameTime}
@@ -694,7 +795,7 @@ const RoadGame: React.FC = () => {
       </div>
 
       {/* Toolbar - 세로 모드만 */}
-      <div className="landscape-hide w-full flex justify-center px-2">
+      <div className="landscape-hide w-full flex justify-center px-2 shrink-0">
         <Toolbar
           isPaused={isPaused}
           gameSpeed={gameSpeed}
@@ -709,22 +810,23 @@ const RoadGame: React.FC = () => {
 
       {/* 메인 게임 영역 */}
       <div 
-        className="landscape-main flex-1 flex items-center justify-center min-h-0 overflow-hidden"
-        onWheel={handleWheel}
+        ref={containerRef}
+        className="landscape-main flex-1 flex items-center justify-center min-h-0 overflow-hidden shrink"
         onMouseDown={handleContainerMouseDown}
         onMouseMove={handleContainerMouseMove}
         onMouseUp={handleContainerMouseUp}
         onMouseLeave={handleContainerMouseUp}
       >
-        {/* 캔버스 컨테이너 */}
+        {/* 캔버스 컨테이너 - 단순화된 줌 */}
         <div 
-          className="rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl border border-white/50 ring-1 ring-slate-200/50 max-w-full max-h-[60vh] sm:max-h-[70vh] md:max-h-[80vh] landscape-canvas relative bg-slate-100"
+          className="rounded-xl sm:rounded-2xl overflow-hidden border border-white/50 ring-1 ring-slate-200/50 landscape-canvas relative bg-slate-100"
           style={{
-            width: mapSize.width,
-            height: mapSize.height,
-            transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
-            transformOrigin: 'center center',
-            cursor: isPanning ? 'grabbing' : 'default',
+            width: mapSize.width * zoom,
+            height: mapSize.height * zoom,
+            maxWidth: '100%',
+            maxHeight: '100%',
+            aspectRatio: `${mapSize.width} / ${mapSize.height}`,
+            cursor: activeTool === 'pan' ? 'grab' : 'default',
           }}
         >
           <canvas
@@ -739,34 +841,12 @@ const RoadGame: React.FC = () => {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             className="cursor-crosshair bg-white touch-none"
-            style={{ width: mapSize.width, height: mapSize.height }}
+            style={{ 
+              width: '100%', 
+              height: '100%',
+              transform: `translate(${panOffset.x}px, ${panOffset.y}px)`,
+            }}
           />
-          
-          {/* 줌 컨트롤 */}
-          <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-20">
-            <button
-              onClick={() => setZoom(prev => Math.min(3, prev + 0.25))}
-              className="w-12 h-12 rounded-xl bg-white shadow-lg border-2 border-slate-300 flex items-center justify-center text-slate-700 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 active:bg-blue-100 font-bold text-2xl transition-all"
-              title="Zoom In"
-            >
-              +
-            </button>
-            <div className="text-center text-sm font-bold text-white bg-slate-700 rounded-lg px-2 py-1 shadow-md">
-              {Math.round(zoom * 100)}%
-            </div>
-            <button
-              onClick={() => setZoom(prev => Math.max(1, prev - 0.25))}
-              disabled={zoom <= 1}
-              className={`w-12 h-12 rounded-xl bg-white shadow-lg border-2 flex items-center justify-center font-bold text-2xl transition-all ${
-                zoom <= 1 
-                  ? 'border-slate-200 text-slate-300 cursor-not-allowed' 
-                  : 'border-slate-300 text-slate-700 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-600 active:bg-blue-100'
-              }`}
-              title="Zoom Out"
-            >
-              -
-            </button>
-          </div>
           
           {/* 경고 메시지 */}
           <WarningMessage message={warningMessage} />
@@ -793,7 +873,7 @@ const RoadGame: React.FC = () => {
               language={language}
               onPlayAgain={startNewGame}
             />
-        )}
+          )}
         </div>
       </div>
 
@@ -811,7 +891,7 @@ const RoadGame: React.FC = () => {
       )}
 
       {/* HUD - 세로 모드 */}
-      <div className="landscape-hide w-full flex justify-center">
+      <div className="landscape-hide w-full flex justify-center shrink-0">
         <HUD
           activeTool={activeTool}
           bridgeCount={bridgeCount}
@@ -819,12 +899,25 @@ const RoadGame: React.FC = () => {
           trafficLightCount={trafficLightCount}
           language={language}
           onToolChange={setActiveTool}
+          zoom={zoom}
+          onZoomIn={() => setZoom(prev => Math.min(1.5, prev + 0.25))}
+          onZoomOut={() => setZoom(prev => Math.max(0.3, prev - 0.25))}
         />
       </div>
 
       {/* HUD - 가로 모드 (오른쪽 사이드바) */}
       <div className="hidden landscape-sidebar">
         <div className="flex flex-col gap-1">
+          {/* Pan Tool */}
+          <button
+            onClick={() => setActiveTool('pan')}
+            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold ${
+              activeTool === 'pan' ? 'bg-slate-600 text-white' : 'bg-white text-slate-400 border border-slate-200'
+            }`}
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
+            <span>이동</span>
+          </button>
           {/* 도구 버튼들 */}
           <button
             onClick={() => setActiveTool('normal')}
@@ -864,6 +957,32 @@ const RoadGame: React.FC = () => {
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="8" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="16" r="2" /><rect x="9" y="4" width="6" height="16" rx="1" /></svg>
             <span>신호</span>
             <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">{trafficLightCount}</span>
+          </button>
+
+          {/* 구분선 */}
+          <div className="h-px w-10 bg-slate-200 self-center my-1" />
+
+          {/* 줌 컨트롤 */}
+          <button
+            onClick={() => setZoom(prev => Math.min(1.5, prev + 0.25))}
+            disabled={zoom >= 1.5}
+            className={`w-12 h-10 rounded-lg flex items-center justify-center text-lg font-bold ${
+              zoom >= 1.5 ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            +
+          </button>
+          <div className="w-12 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-700">
+            {Math.round(zoom * 100)}%
+          </div>
+          <button
+            onClick={() => setZoom(prev => Math.max(0.3, prev - 0.25))}
+            disabled={zoom <= 0.3}
+            className={`w-12 h-10 rounded-lg flex items-center justify-center text-lg font-bold ${
+              zoom <= 0.3 ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            -
           </button>
         </div>
       </div>

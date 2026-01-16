@@ -236,6 +236,9 @@ export function useGameState(): GameStateReturn {
   // 건물 비활성화 체크
   useEffect(() => {
     const cleanupInterval = setInterval(() => {
+      // 일시정지 중에는 건물 비활성화 및 파괴 카운트 증가 안함
+      if (isPaused || isGameOver) return;
+
       const now = Date.now();
       const TIMEOUT = 45000;
       const GRACE_PERIOD = 15000;
@@ -277,7 +280,7 @@ export function useGameState(): GameStateReturn {
       });
     }, 1000);
     return () => clearInterval(cleanupInterval);
-  }, []);
+  }, [isPaused, isGameOver]);
 
   return {
     score,

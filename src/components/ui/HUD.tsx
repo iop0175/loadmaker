@@ -7,7 +7,7 @@ import React from 'react';
 import type { Language } from '../../i18n';
 import { getTranslations } from '../../i18n';
 
-export type ActiveTool = 'normal' | 'bridge' | 'highway' | 'traffic-light';
+export type ActiveTool = 'normal' | 'bridge' | 'highway' | 'traffic-light' | 'pan';
 
 interface HUDProps {
   activeTool: ActiveTool;
@@ -16,6 +16,10 @@ interface HUDProps {
   trafficLightCount: number;
   language: Language;
   onToolChange: (tool: ActiveTool) => void;
+  // 줌 컨트롤
+  zoom: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
 }
 
 export const HUD: React.FC<HUDProps> = ({
@@ -25,12 +29,30 @@ export const HUD: React.FC<HUDProps> = ({
   trafficLightCount,
   language,
   onToolChange,
+  zoom,
+  onZoomIn,
+  onZoomOut,
 }) => {
   const t = getTranslations(language);
   
   return (
     <div className="mt-2 sm:mt-4 z-40 w-full flex justify-center">
       <div className="flex bg-white/90 backdrop-blur-xl border-2 border-slate-200 ring-2 ring-slate-100 rounded-2xl sm:rounded-3xl shadow-2xl p-2 sm:p-3 gap-2 sm:gap-4">
+        {/* Pan Tool */}
+        <button
+          onClick={() => onToolChange('pan')}
+          className={`w-14 h-14 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center transition-all duration-300 border-2 ${
+            activeTool === 'pan' 
+              ? 'bg-slate-600 text-white shadow-lg shadow-slate-300 scale-110 border-slate-400' 
+              : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300'
+          }`}
+        >
+          <svg className="w-6 h-6 sm:w-8 sm:h-8 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+          </svg>
+          <span className="text-[9px] sm:text-xs font-extrabold tracking-wide uppercase">{t.pan}</span>
+        </button>
+
         {/* Normal Tool */}
         <button
           onClick={() => onToolChange('normal')}
@@ -108,6 +130,46 @@ export const HUD: React.FC<HUDProps> = ({
             {trafficLightCount}
           </div>
         </button>
+
+        {/* 구분선 */}
+        <div className="w-px h-10 sm:h-14 bg-slate-200 self-center mx-1 sm:mx-2" />
+
+        {/* 줌 컨트롤 */}
+        <div className="flex items-center gap-1 sm:gap-2">
+          <button
+            onClick={onZoomOut}
+            disabled={zoom <= 0.3}
+            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all duration-300 border-2 ${
+              zoom <= 0.3
+                ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 active:bg-slate-100'
+            }`}
+            title="Zoom Out"
+          >
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+            </svg>
+          </button>
+          
+          <div className="min-w-[48px] sm:min-w-[56px] h-10 sm:h-12 px-2 rounded-xl bg-slate-100 border-2 border-slate-200 flex items-center justify-center">
+            <span className="text-xs sm:text-sm font-bold text-slate-700">{Math.round(zoom * 100)}%</span>
+          </div>
+          
+          <button
+            onClick={onZoomIn}
+            disabled={zoom >= 1.5}
+            className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center transition-all duration-300 border-2 ${
+              zoom >= 1.5
+                ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300 active:bg-slate-100'
+            }`}
+            title="Zoom In"
+          >
+            <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );

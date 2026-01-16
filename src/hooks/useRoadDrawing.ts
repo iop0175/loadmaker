@@ -252,6 +252,11 @@ export function useRoadDrawing({
 
   /** 마우스 다운 */
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    // pan 도구일 때는 도로 그리기 비활성화
+    if (activeTool === 'pan') {
+      return;
+    }
+
     if (e.button === 1) {
       e.preventDefault();
       isPanning.current = true;
@@ -608,6 +613,11 @@ export function useRoadDrawing({
 
   /** 터치 시작 (모바일) */
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    // pan 도구일 때는 도로 그리기 비활성화
+    if (activeTool === 'pan') {
+      return;
+    }
+
     if (e.touches.length !== 1) return;
     e.preventDefault();
     const touch = e.touches[0];
