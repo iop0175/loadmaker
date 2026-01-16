@@ -30,6 +30,7 @@ export interface Building {
   createdAt: number; // 생성 시간
   wasActive?: boolean; // 한번이라도 활성화되었는지 (안전 시간 적용 여부)
   upgradeLevel?: number; // 업그레이드 레벨 (기본 1, 도로 연결 가능 개수)
+  nextSpawnTime?: number; // 다음 차량 스폰 시간 (집만 해당)
 }
 
 /** 차량 상태 */

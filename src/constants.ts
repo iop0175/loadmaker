@@ -12,7 +12,9 @@ export const VEHICLE_SIZE = 4; // 6 -> 4로 축소
 export const VEHICLE_SPEED = 1.5; // 차량 속도 (동일)
 export const LANE_OFFSET = 5; // 8 -> 5로 축소 (도로 폭에 맞춤)
 export const MAX_VEHICLES = 100;
-export const VEHICLE_SPAWN_INTERVAL = 1000; // 차량 생성 간격 단축
+export const VEHICLE_SPAWN_INTERVAL = 1000; // 차량 생성 간격 (기본값)
+export const VEHICLE_SPAWN_INTERVAL_MIN = 800; // 최소 스폰 간격
+export const VEHICLE_SPAWN_INTERVAL_MAX = 2500; // 최대 스폰 간격
 export const MAX_VEHICLES_PER_HOME = 5;
 export const MAX_VEHICLES_PER_OFFICE = 10;
 

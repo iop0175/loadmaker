@@ -8,7 +8,8 @@ import type { Point, Road, Building, Vehicle, Intersection } from '../types';
 import { 
   VEHICLE_SPEED,
   MAX_VEHICLES,
-  VEHICLE_SPAWN_INTERVAL,
+  VEHICLE_SPAWN_INTERVAL_MIN,
+  VEHICLE_SPAWN_INTERVAL_MAX,
   OFFICE_WAIT_TIME,
   SCORE_PER_TRIP,
   MAX_VEHICLES_PER_HOME,
@@ -330,14 +331,54 @@ export function useVehicleLogic({
     return () => clearInterval(gameLoop);
   }, [intersections, createReturnPath, gameSpeed, isGameOver, isPaused, setVehicles, setScore]);
 
-  /** 자동 차량 생성 */
+  /** 각 집마다 개별 스폰 시간으로 차량 생성 */
   useEffect(() => {
     if (isGameOver || isPaused || roads.length === 0) return;
-    const spawnInterval = setInterval(() => {
-      if (vehicles.length < MAX_VEHICLES) spawnVehicle();
-    }, VEHICLE_SPAWN_INTERVAL / gameSpeed);
-    return () => clearInterval(spawnInterval);
-  }, [roads.length, vehicles.length, spawnVehicle, gameSpeed, isGameOver, isPaused]);
+    
+    const spawnCheckInterval = setInterval(() => {
+      const currentTime = Date.now();
+      const currentVehicles = vehiclesRef.current;
+      
+      if (currentVehicles.length >= MAX_VEHICLES) return;
+      
+      const homeBuildings = buildings.filter(b => b.id.includes('-home'));
+      
+      const officeCounts = new Map<string, number>();
+      currentVehicles.forEach(v => {
+        const count = officeCounts.get(v.toBuilding) || 0;
+        officeCounts.set(v.toBuilding, count + 1);
+      });
+      
+      for (const home of homeBuildings) {
+        // 스폰 시간이 아직 설정되지 않았거나, 현재 시간이 스폰 시간을 지났는지 확인
+        const nextSpawnTime = home.nextSpawnTime || 0;
+        if (currentTime < nextSpawnTime) continue;
+        
+        const office = findOfficeForHome(home);
+        if (!office) continue;
+        
+        const vehiclesFromHome = currentVehicles.filter(v => v.fromBuilding === home.id).length;
+        if (vehiclesFromHome >= MAX_VEHICLES_PER_HOME) continue;
+        
+        const currentOfficeCount = officeCounts.get(office.id) || 0;
+        if (currentOfficeCount >= MAX_VEHICLES_PER_OFFICE) continue;
+        
+        const path = findPath(home.position, office.position, roads);
+        if (!path || path.length < 2) continue;
+        
+        // 차량 생성
+        spawnVehicleFromBuilding(home);
+        officeCounts.set(office.id, currentOfficeCount + 1);
+        
+        // 다음 스폰 시간 설정 (각 집마다 랜덤 간격)
+        const randomInterval = VEHICLE_SPAWN_INTERVAL_MIN + 
+          Math.random() * (VEHICLE_SPAWN_INTERVAL_MAX - VEHICLE_SPAWN_INTERVAL_MIN);
+        home.nextSpawnTime = currentTime + (randomInterval / gameSpeed);
+      }
+    }, 100); // 100ms마다 체크
+    
+    return () => clearInterval(spawnCheckInterval);
+  }, [roads.length, buildings, spawnVehicleFromBuilding, findOfficeForHome, findPath, gameSpeed, isGameOver, isPaused, vehiclesRef]);
 
   /** 도로 변경 시 이동 중인 차량 경로 재계산 */
   useEffect(() => {
