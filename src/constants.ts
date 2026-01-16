@@ -35,8 +35,5 @@ export const ROAD_OUTLINE_WIDTH = 22;
 export const ROAD_OVERLAP_THRESHOLD = 12; // 도로 중복 판정 거리 (축소)
 export const ROAD_OVERLAP_RATIO = 0.3; // 30% 이상 겹치면 중복
 
-// ============ 신호등 설정 ============
-export const TRAFFIC_LIGHT_PHASE_DURATION = 5000; // 신호 주기 (5초)
-
 // ============ 색상 ============
 export const BUILDING_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6'];

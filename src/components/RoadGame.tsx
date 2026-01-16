@@ -30,6 +30,7 @@ import {
   GameOverOverlay, 
   RoadPopover,
   WarningMessage,
+  Shop,
 } from './ui';
 
 // 모바일 감지 함수 - 화면 크기에 따라 초기 줌 설정
@@ -57,6 +58,7 @@ const RoadGame: React.FC = () => {
   const [zoom, setZoom] = useState(getInitialZoom); // 모바일: 40%, 데스크톱: 75%
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 }); // 맵 이동 오프셋
   const isPanningRef = useRef(false);
+  const [isShopOpen, setIsShopOpen] = useState(false);
   const lastPanPosRef = useRef({ x: 0, y: 0 });
 
   // 게임 상태 훅
@@ -76,8 +78,6 @@ const RoadGame: React.FC = () => {
     setBridgeCount,
     highwayCount,
     setHighwayCount,
-    trafficLightCount,
-    setTrafficLightCount,
     activeTool,
     setActiveTool,
     mapSize,
@@ -113,8 +113,6 @@ const RoadGame: React.FC = () => {
     setBridgeCount,
     highwayCount,
     setHighwayCount,
-    trafficLightCount,
-    setTrafficLightCount,
     language,
     showWarning,
   });
@@ -136,6 +134,18 @@ const RoadGame: React.FC = () => {
     handleTouchEnd,
     deleteRoad,
   } = roadDrawing;
+
+  // 상점 구매 핸들러
+  const handleShopBuy = useCallback((item: 'bridge' | 'highway', price: number) => {
+    if (score >= price) {
+      setScore(prev => prev - price);
+      if (item === 'bridge') {
+        setBridgeCount(prev => prev + 1);
+      } else if (item === 'highway') {
+        setHighwayCount(prev => prev + 1);
+      }
+    }
+  }, [score, setScore, setBridgeCount, setHighwayCount]);
 
   // 마우스 휠로 줌 조절 - useEffect로 non-passive 이벤트 등록
   useEffect(() => {
@@ -496,29 +506,6 @@ const RoadGame: React.FC = () => {
           ctx.stroke();
         }
       });
-
-      // 신호등 렌더링
-      if (intersection.hasTrafficLight) {
-        const now = Date.now();
-        const phaseStart = intersection.phaseStartTime || now;
-        const elapsed = now - phaseStart;
-        const currentPhase = Math.floor(elapsed / 5000) % 2 === 0 ? 'ns' : 'ew';
-        
-        ctx.fillStyle = '#1e293b';
-        ctx.beginPath();
-        ctx.arc(intersection.point.x, intersection.point.y, 10, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.fillStyle = currentPhase === 'ns' ? '#22c55e' : '#dc2626';
-        ctx.beginPath();
-        ctx.arc(intersection.point.x, intersection.point.y - 4, 3, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.fillStyle = currentPhase === 'ew' ? '#22c55e' : '#dc2626';
-        ctx.beginPath();
-        ctx.arc(intersection.point.x, intersection.point.y + 4, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
     });
 
     // 선택된 도로 하이라이트
@@ -617,11 +604,27 @@ const RoadGame: React.FC = () => {
       const lastActive = building.lastActiveTime || now;
       const inactiveTime = now - lastActive;
       const timeLeft = Math.max(0, 45000 - inactiveTime);
+      
+      // 새 건물 하이라이트 효과 (5초간)
+      const createdAt = building.createdAt || now;
+      const age = now - createdAt;
+      const isNewBuilding = age < 5000; // 5초간 하이라이트
 
       if (isHome) {
         const houseWidth = 36;
         const houseHeight = 30;
         const roofHeight = 15;
+        
+        // 새 건물 펄스 애니메이션
+        if (isNewBuilding) {
+          const pulse = 1 + Math.sin(age / 150) * 0.15;
+          const alpha = 0.5 + Math.sin(age / 200) * 0.3;
+          
+          ctx.beginPath();
+          ctx.arc(cx, cy, 40 * pulse, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${isHome ? '34, 197, 94' : '59, 130, 246'}, ${alpha})`;
+          ctx.fill();
+        }
 
         ctx.fillStyle = building.color;
         ctx.fillRect(cx - houseWidth/2, cy - houseHeight/2, houseWidth, houseHeight);
@@ -678,6 +681,17 @@ const RoadGame: React.FC = () => {
       } else {
         const buildingWidth = 40;
         const buildingHeight = 50;
+
+        // 새 건물 펄스 애니메이션
+        if (isNewBuilding) {
+          const pulse = 1 + Math.sin(age / 150) * 0.15;
+          const alpha = 0.5 + Math.sin(age / 200) * 0.3;
+          
+          ctx.beginPath();
+          ctx.arc(cx, cy, 45 * pulse, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(59, 130, 246, ${alpha})`;
+          ctx.fill();
+        }
 
         ctx.fillStyle = building.color;
         ctx.fillRect(cx - buildingWidth/2, cy - buildingHeight/2, buildingWidth, buildingHeight);
@@ -809,6 +823,12 @@ const RoadGame: React.FC = () => {
           >
             {gameSpeed}x
           </button>
+          <button 
+            onClick={() => setIsShopOpen(true)}
+            className="p-2 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold"
+          >
+            $
+          </button>
         </div>
       </div>
 
@@ -834,6 +854,7 @@ const RoadGame: React.FC = () => {
           onNewGame={startNewGame}
           onTogglePause={() => setIsPaused(prev => !prev)}
           onToggleSpeed={() => setGameSpeed(prev => prev === 1 ? 2 : 1)}
+          onOpenShop={() => setIsShopOpen(true)}
         />
       </div>
 
@@ -906,6 +927,17 @@ const RoadGame: React.FC = () => {
         </div>
       </div>
 
+      {/* 상점 모달 */}
+      <Shop
+        isOpen={isShopOpen}
+        onClose={() => setIsShopOpen(false)}
+        score={score}
+        bridgeCount={bridgeCount}
+        highwayCount={highwayCount}
+        language={language}
+        onBuy={handleShopBuy}
+      />
+
       {/* 교차점 표시 - 세로 모드에서만 */}
       {intersections.length > 0 && (
         <div className="hidden sm:block landscape-hide mt-4 sm:mt-6 text-sm">
@@ -925,7 +957,6 @@ const RoadGame: React.FC = () => {
           activeTool={activeTool}
           bridgeCount={bridgeCount}
           highwayCount={highwayCount}
-          trafficLightCount={trafficLightCount}
           language={language}
           onToolChange={setActiveTool}
           zoom={zoom}
@@ -976,16 +1007,6 @@ const RoadGame: React.FC = () => {
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             <span>고속</span>
             <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">{highwayCount}</span>
-          </button>
-          <button
-            onClick={() => setActiveTool('traffic-light')}
-            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold relative ${
-              activeTool === 'traffic-light' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-400 border border-slate-200'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="8" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="16" r="2" /><rect x="9" y="4" width="6" height="16" rx="1" /></svg>
-            <span>신호</span>
-            <span className="absolute -top-1 -right-1 bg-emerald-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">{trafficLightCount}</span>
           </button>
 
           {/* 구분선 */}

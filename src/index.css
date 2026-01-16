@@ -58,12 +58,15 @@ body {
     gap: 0.25rem !important;
   }
   
-  /* 모바일 세로모드에서 전체 높이 */
+  /* 모바일 세로모드에서 전체 높이 - iOS Safari 대응 */
   #root {
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0);
     padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-left: env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
   }
 }
 
@@ -75,6 +78,14 @@ body {
     max-height: 100vh !important;
     max-height: 100dvh !important;
     overflow: hidden !important;
+  }
+  
+  /* iOS Safari 가로모드 safe area 대응 */
+  #root {
+    padding-top: env(safe-area-inset-top, 0) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0) !important;
+    padding-left: env(safe-area-inset-left, 0) !important;
+    padding-right: env(safe-area-inset-right, 0) !important;
   }
 
   .landscape-mode {

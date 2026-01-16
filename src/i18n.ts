@@ -19,7 +19,6 @@ interface Translations {
   road: string;
   bridge: string;
   highway: string;
-  signal: string;
   pan: string;
   straight: string;
   curve: string;
@@ -31,9 +30,6 @@ interface Translations {
   speed: string;
   
   // 경고 메시지
-  noTrafficLights: string;
-  alreadyTrafficLight: string;
-  clickNearIntersection: string;
   highwayCannotCrossRiver: string;
   noHighwayItems: string;
   noBridgeItems: string;
@@ -47,6 +43,11 @@ interface Translations {
   survivalTime: string;
   buildingsDestroyed: string;
   playAgain: string;
+  
+  // 상점
+  shop: string;
+  buy: string;
+  notEnoughMoney: string;
 }
 
 const translations: Record<Language, Translations> = {
@@ -65,7 +66,6 @@ const translations: Record<Language, Translations> = {
     road: 'Road',
     bridge: 'Bridge',
     highway: 'Highway',
-    signal: 'Signal',
     pan: 'Move',
     straight: 'Straight (F)',
     curve: 'Curve (Shift)',
@@ -77,9 +77,6 @@ const translations: Record<Language, Translations> = {
     speed: 'Speed',
     
     // 경고 메시지
-    noTrafficLights: 'No traffic light items!',
-    alreadyTrafficLight: 'Already has traffic light.',
-    clickNearIntersection: 'Click near an intersection.',
     highwayCannotCrossRiver: 'Highway cannot cross river.',
     noHighwayItems: 'No highway items!',
     noBridgeItems: 'No bridge items!',
@@ -93,6 +90,11 @@ const translations: Record<Language, Translations> = {
     survivalTime: 'Survival Time',
     buildingsDestroyed: 'Buildings Destroyed',
     playAgain: 'PLAY AGAIN',
+    
+    // 상점
+    shop: 'Shop',
+    buy: 'Buy',
+    notEnoughMoney: 'Not enough money!',
   },
   ko: {
     // 헤더
@@ -109,7 +111,6 @@ const translations: Record<Language, Translations> = {
     road: '도로',
     bridge: '다리',
     highway: '고속도로',
-    signal: '신호등',
     pan: '이동',
     straight: '직선 (F)',
     curve: '곡선 (Shift)',
@@ -121,9 +122,6 @@ const translations: Record<Language, Translations> = {
     speed: '속도',
     
     // 경고 메시지
-    noTrafficLights: '신호등 아이템이 부족합니다!',
-    alreadyTrafficLight: '이미 신호등이 설치된 교차로입니다.',
-    clickNearIntersection: '교차로 근처를 클릭하세요.',
     highwayCannotCrossRiver: '고속도로는 강을 건널 수 없습니다.',
     noHighwayItems: '고속도로 아이템이 부족합니다!',
     noBridgeItems: '다리 건설권이 부족합니다!',
@@ -137,6 +135,11 @@ const translations: Record<Language, Translations> = {
     survivalTime: '생존 시간',
     buildingsDestroyed: '파괴된 건물',
     playAgain: '다시 하기',
+    
+    // 상점
+    shop: '상점',
+    buy: '구매',
+    notEnoughMoney: '자금이 부족합니다!',
   }
 };
 

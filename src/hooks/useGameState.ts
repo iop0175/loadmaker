@@ -40,8 +40,6 @@ interface GameStateReturn {
   setBridgeCount: React.Dispatch<React.SetStateAction<number>>;
   highwayCount: number;
   setHighwayCount: React.Dispatch<React.SetStateAction<number>>;
-  trafficLightCount: number;
-  setTrafficLightCount: React.Dispatch<React.SetStateAction<number>>;
   activeTool: ActiveTool;
   setActiveTool: React.Dispatch<React.SetStateAction<ActiveTool>>;
   
@@ -110,7 +108,6 @@ export function useGameState(): GameStateReturn {
   const [gameTime, setGameTime] = useState(0);
   const [bridgeCount, setBridgeCount] = useState(1);
   const [highwayCount, setHighwayCount] = useState(1);
-  const [trafficLightCount, setTrafficLightCount] = useState(1);
   const [activeTool, setActiveTool] = useState<ActiveTool>('normal');
   const [destroyedCount, setDestroyedCount] = useState(0);
   const [isGameOver, setIsGameOver] = useState(false);
@@ -139,7 +136,6 @@ export function useGameState(): GameStateReturn {
     setGameTime(0);
     setBridgeCount(1);
     setHighwayCount(1);
-    setTrafficLightCount(1);
     setActiveTool('normal');
     setDestroyedCount(0);
     setIsGameOver(false);
@@ -316,8 +312,6 @@ export function useGameState(): GameStateReturn {
     setBridgeCount,
     highwayCount,
     setHighwayCount,
-    trafficLightCount,
-    setTrafficLightCount,
     activeTool,
     setActiveTool,
     mapSize,

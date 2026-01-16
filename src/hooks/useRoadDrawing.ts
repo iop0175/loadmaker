@@ -28,8 +28,6 @@ interface UseRoadDrawingProps {
   setBridgeCount: React.Dispatch<React.SetStateAction<number>>;
   highwayCount: number;
   setHighwayCount: React.Dispatch<React.SetStateAction<number>>;
-  trafficLightCount: number;
-  setTrafficLightCount: React.Dispatch<React.SetStateAction<number>>;
   language: Language;
   showWarning: (message: string) => void;
 }
@@ -49,8 +47,6 @@ export function useRoadDrawing({
   setBridgeCount,
   highwayCount,
   setHighwayCount,
-  trafficLightCount,
-  setTrafficLightCount,
   language,
   showWarning,
 }: UseRoadDrawingProps) {
@@ -207,6 +203,21 @@ export function useRoadDrawing({
     return false;
   }, [roads]);
 
+  /** 건물에 이미 도로가 연결되어 있는지 확인 (1개만 허용) */
+  const isBuildingAlreadyConnected = useCallback((point: Point): boolean => {
+    // 점이 건물 위치인지 확인
+    const building = buildings.find(b => distance(point, b.position) < 5);
+    if (!building) return false;
+    
+    // 이 건물에 연결된 도로 수 세기
+    const connectedRoads = roads.filter(r => 
+      distance(r.start, building.position) < 5 || distance(r.end, building.position) < 5
+    );
+    
+    // 이미 1개 이상의 도로가 연결되어 있으면 추가 연결 불가
+    return connectedRoads.length >= 1;
+  }, [roads, buildings]);
+
   /** 클릭한 위치의 도로 찾기 */
   const getRoadAtPoint = useCallback((point: Point): Road | null => {
     for (let i = roads.length - 1; i >= 0; i--) {
@@ -278,42 +289,6 @@ export function useRoadDrawing({
       y: (e.clientY - rect.top) * scaleY 
     };
 
-    // 신호등 모드: 교차로에 신호등 설치
-    if (activeTool === 'traffic-light') {
-      const nearestIntersection = intersections.find(
-        inter => distance(rawPoint, inter.point) < 25
-      );
-      
-      if (nearestIntersection) {
-        if (trafficLightCount <= 0) {
-          showWarning(t.noTrafficLights);
-          return;
-        }
-        if (nearestIntersection.hasTrafficLight) {
-          showWarning(t.alreadyTrafficLight);
-          return;
-        }
-        
-        setIntersections(prev => prev.map(inter => {
-          if (inter.point.x === nearestIntersection.point.x && 
-              inter.point.y === nearestIntersection.point.y) {
-            return {
-              ...inter,
-              hasTrafficLight: true,
-              trafficLightPhase: 'ns',
-              phaseStartTime: Date.now(),
-            };
-          }
-          return inter;
-        }));
-        setTrafficLightCount(prev => prev - 1);
-        setActiveTool('normal');
-      } else {
-        showWarning(t.clickNearIntersection);
-      }
-      return;
-    }
-
     const snappedToRoad = snapToRoadEndpoint(rawPoint);
     setSelectedRoad(null);
     
@@ -322,7 +297,7 @@ export function useRoadDrawing({
     setDrawStart(point);
     setCurrentEnd(point);
     setControlPoint(null);
-  }, [activeTool, intersections, trafficLightCount, snapToRoadEndpoint, setIntersections, setTrafficLightCount, setActiveTool, showWarning, t]);
+  }, [activeTool, snapToRoadEndpoint, setActiveTool, showWarning, t]);
 
   /** 마우스 이동 */
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -463,6 +438,18 @@ export function useRoadDrawing({
           return;
         }
         
+        // 건물에 이미 도로가 연결되어 있는지 체크 (1개만 허용)
+        const buildingConnected = isBuildingAlreadyConnected(drawStart) || isBuildingAlreadyConnected(currentEnd);
+        
+        if (buildingConnected) {
+          showWarning(language === 'ko' ? '건물에는 1개의 도로만 연결할 수 있습니다' : 'Only one road can connect to a building');
+          setIsDrawing(false);
+          setDrawStart(null);
+          setCurrentEnd(null);
+          setControlPoint(null);
+          return;
+        }
+        
         if (!overlapsRoad && !overlapsBuilding) {
           const dist = distance(drawStart, currentEnd);
           let cost = Math.ceil(dist);
@@ -595,7 +582,7 @@ export function useRoadDrawing({
     activeTool, score, bridgeCount, highwayCount, language,
     doesRoadCrossRiver, doesCurveRoadCrossRiver, doesRoadIntersectAnyBuilding,
     findIntersections, getRoadAtPoint, isConnectingToBridgeMiddle, isBridgeEndpointAlreadyConnected,
-    setRoads, setIntersections, setScore, setBridgeCount, setHighwayCount, showWarning, t
+    isBuildingAlreadyConnected, setRoads, setIntersections, setScore, setBridgeCount, setHighwayCount, showWarning, t
   ]);
 
   /** 도로 삭제 */
@@ -633,42 +620,6 @@ export function useRoadDrawing({
       y: (touch.clientY - rect.top) * scaleY 
     };
 
-    // 신호등 모드: 교차로에 신호등 설치
-    if (activeTool === 'traffic-light') {
-      const nearestIntersection = intersections.find(
-        inter => distance(rawPoint, inter.point) < 25
-      );
-      
-      if (nearestIntersection) {
-        if (trafficLightCount <= 0) {
-          showWarning(t.noTrafficLights);
-          return;
-        }
-        if (nearestIntersection.hasTrafficLight) {
-          showWarning(t.alreadyTrafficLight);
-          return;
-        }
-        
-        setIntersections(prev => prev.map(inter => {
-          if (inter.point.x === nearestIntersection.point.x && 
-              inter.point.y === nearestIntersection.point.y) {
-            return {
-              ...inter,
-              hasTrafficLight: true,
-              trafficLightPhase: 'ns',
-              phaseStartTime: Date.now(),
-            };
-          }
-          return inter;
-        }));
-        setTrafficLightCount(prev => prev - 1);
-        setActiveTool('normal');
-      } else {
-        showWarning(t.clickNearIntersection);
-      }
-      return;
-    }
-
     const snappedToRoad = snapToRoadEndpoint(rawPoint);
     setSelectedRoad(null);
     
@@ -677,7 +628,7 @@ export function useRoadDrawing({
     setDrawStart(point);
     setCurrentEnd(point);
     setControlPoint(null);
-  }, [activeTool, intersections, trafficLightCount, snapToRoadEndpoint, setIntersections, setTrafficLightCount, setActiveTool, showWarning, t]);
+  }, [activeTool, snapToRoadEndpoint, setActiveTool, showWarning, t]);
 
   /** 터치 이동 (모바일) */
   const handleTouchMove = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {

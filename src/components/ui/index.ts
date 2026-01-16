@@ -10,3 +10,4 @@ export type { ActiveTool } from './HUD';
 export { GameOverOverlay } from './GameOverOverlay';
 export { RoadPopover } from './RoadPopover';
 export { WarningMessage } from './WarningMessage';
+export { Shop } from './Shop';

@@ -150,11 +150,14 @@ export function useVehicleLogic({
             const key = `${intersection.point.x},${intersection.point.y}`;
             const dist = distance(vehicle.position, intersection.point);
             
-            if (dist < 30) {
+            // 교차로 근처(35px 이내)에 있을 때만 큐에 추가
+            // 교차로 밖(35px 초과)으로 나가면 즉시 큐에서 제거
+            if (dist < 35) {
               if (!newArrivalTimes[key]) {
                 newArrivalTimes[key] = currentTime;
               }
             } else {
+              // 교차로에서 벗어나면 즉시 제거
               delete newArrivalTimes[key];
             }
           });
@@ -229,13 +232,37 @@ export function useVehicleLogic({
             distance(vehicle.position, intersection.point) < 15
           );
           
-          if (!insideIntersection) {
+          // 같은 차선에서 앞에 있는 차량과의 충돌 방지
+          const aheadVehicle = vehiclesWithArrivalTimes.find(other => {
+            if (other.id === vehicle.id) return false;
+            if (other.status !== vehicle.status) return false;
+            
+            // 같은 도로 위에 있는지 확인 (목표 지점이 비슷한지)
+            const sameRoad = other.path.length > 0 && vehicle.path.length > 0 &&
+              other.targetIndex < other.path.length && vehicle.targetIndex < vehicle.path.length &&
+              distance(other.path[other.targetIndex], target) < 10;
+            
+            if (!sameRoad) return false;
+            
+            // 앞에 있는지 확인 (목표까지의 거리가 더 가까운 차량)
+            const otherDist = distance(other.position, other.path[other.targetIndex]);
+            const myDist = distance(vehicle.position, target);
+            
+            return otherDist < myDist && distance(vehicle.position, other.position) < 25;
+          });
+          
+          if (aheadVehicle) {
+            shouldWait = true;
+          }
+          
+          if (!insideIntersection && !shouldWait) {
             intersections.forEach(intersection => {
               const distToIntersection = distance(vehicle.position, intersection.point);
               if (distToIntersection >= 15 && distToIntersection < 35) {
                 const key = `${intersection.point.x},${intersection.point.y}`;
                 const queue = intersectionQueues.get(key);
                 
+                // 교차로 안에 있는 같은 방향 차량이 있는지 확인
                 const sameDirectionInIntersection = vehiclesWithArrivalTimes.some(other => 
                   other.id !== vehicle.id &&
                   other.status === vehicle.status &&

@@ -1,10 +1,9 @@
 /**
  * Intersection Renderer
- * 교차점 렌더링 함수 (외곽선, 본체, 저지선, 혼잡도 표시, 신호등)
+ * 교차점 렌더링 함수 (외곽선, 본체, 저지선, 혼잡도 표시)
  */
 
 import type { Intersection, Road, Vehicle, Point } from '../types';
-import { TRAFFIC_LIGHT_PHASE_DURATION } from '../constants';
 
 /**
  * 두 점 사이의 거리 계산
@@ -95,48 +94,19 @@ export function renderIntersections(
     ctx.arc(intersection.point.x, intersection.point.y, 12, 0, Math.PI * 2);
     ctx.stroke();
 
-    // 정체 표시 (정체시에만, 신호등이 없는 경우)
-    if (!intersection.hasTrafficLight) {
-      if (isHeavyCongested) {
-         ctx.fillStyle = '#ffffff';
-         ctx.font = 'bold 11px system-ui';
-         ctx.textAlign = 'center';
-         ctx.textBaseline = 'middle';
-         ctx.fillText('!', intersection.point.x, intersection.point.y);
-      } else if (isCongested) {
-         ctx.fillStyle = '#ffffff';
-         ctx.font = 'bold 10px system-ui';
-         ctx.textAlign = 'center';
-         ctx.textBaseline = 'middle';
-         ctx.fillText('!', intersection.point.x, intersection.point.y);
-      }
-    }
-
-    // 신호등 렌더링
-    if (intersection.hasTrafficLight) {
-      const now = Date.now();
-      const phaseStart = intersection.phaseStartTime || now;
-      const elapsed = now - phaseStart;
-      const currentPhase = Math.floor(elapsed / TRAFFIC_LIGHT_PHASE_DURATION) % 2 === 0 ? 'ns' : 'ew';
-      
-      // 신호등 배경
-      ctx.fillStyle = '#1e293b';
-      ctx.beginPath();
-      ctx.arc(intersection.point.x, intersection.point.y, 10, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // 신호등 색상 (NS: 초록/빨강, EW: 빨강/초록)
-      // 상하 (NS) 신호
-      ctx.fillStyle = currentPhase === 'ns' ? '#22c55e' : '#dc2626';
-      ctx.beginPath();
-      ctx.arc(intersection.point.x, intersection.point.y - 4, 3, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // 좌우 (EW) 신호
-      ctx.fillStyle = currentPhase === 'ew' ? '#22c55e' : '#dc2626';
-      ctx.beginPath();
-      ctx.arc(intersection.point.x, intersection.point.y + 4, 3, 0, Math.PI * 2);
-      ctx.fill();
+    // 정체 표시 (정체시에만)
+    if (isHeavyCongested) {
+       ctx.fillStyle = '#ffffff';
+       ctx.font = 'bold 11px system-ui';
+       ctx.textAlign = 'center';
+       ctx.textBaseline = 'middle';
+       ctx.fillText('!', intersection.point.x, intersection.point.y);
+    } else if (isCongested) {
+       ctx.fillStyle = '#ffffff';
+       ctx.font = 'bold 10px system-ui';
+       ctx.textAlign = 'center';
+       ctx.textBaseline = 'middle';
+       ctx.fillText('!', intersection.point.x, intersection.point.y);
     }
     
     // 저지선 표시 (교차점에 연결된 각 도로에 흰색 선)

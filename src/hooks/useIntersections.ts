@@ -33,6 +33,11 @@ export function useIntersections() {
   /** 점이 건물 위에 있는지 확인 */
   const isPointOnBuilding = useCallback((point: Point, buildings: Building[]): boolean => {
     return buildings.some(building => {
+      // 건물 중심점과 가까운 경우 (건물 연결점) - 5px 이내
+      if (distance(point, building.position) < 5) {
+        return true;
+      }
+      
       const isHome = building.id.includes('-home');
       const width = isHome ? 36 : 40;
       const height = isHome ? 30 : 50;
@@ -53,11 +58,12 @@ export function useIntersections() {
       const width = isHome ? 36 : 40;
       const height = isHome ? 30 : 50;
       
-      // 건물 영역 + 30px 여백 (도로 연결점 포함)
-      const left = building.position.x - width / 2 - 30;
-      const right = building.position.x + width / 2 + 30;
-      const top = building.position.y - height / 2 - 30;
-      const bottom = building.position.y + height / 2 + 30;
+      // 건물 영역 + 50px 여백 (도로 연결점 포함 - 더 넓게)
+      const margin = 50;
+      const left = building.position.x - width / 2 - margin;
+      const right = building.position.x + width / 2 + margin;
+      const top = building.position.y - height / 2 - margin;
+      const bottom = building.position.y + height / 2 + margin;
       
       return point.x >= left && point.x <= right && point.y >= top && point.y <= bottom;
     });
