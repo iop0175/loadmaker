@@ -28,6 +28,8 @@ interface Translations {
   pause: string;
   resume: string;
   speed: string;
+  buildMode: string;
+  playMode: string;
   
   // 경고 메시지
   highwayCannotCrossRiver: string;
@@ -48,6 +50,13 @@ interface Translations {
   shop: string;
   buy: string;
   notEnoughMoney: string;
+  
+  // 건물
+  home: string;
+  office: string;
+  roads: string;
+  upgrade: string;
+  maxLevel: string;
 }
 
 const translations: Record<Language, Translations> = {
@@ -75,6 +84,8 @@ const translations: Record<Language, Translations> = {
     pause: 'Pause',
     resume: 'Resume',
     speed: 'Speed',
+    buildMode: 'BUILD',
+    playMode: 'PLAY',
     
     // 경고 메시지
     highwayCannotCrossRiver: 'Highway cannot cross river.',
@@ -95,6 +106,13 @@ const translations: Record<Language, Translations> = {
     shop: 'Shop',
     buy: 'Buy',
     notEnoughMoney: 'Not enough money!',
+    
+    // 건물
+    home: 'Home',
+    office: 'Office',
+    roads: 'roads',
+    upgrade: 'Upgrade',
+    maxLevel: 'MAX LEVEL',
   },
   ko: {
     // 헤더
@@ -120,6 +138,8 @@ const translations: Record<Language, Translations> = {
     pause: '일시정지',
     resume: '재개',
     speed: '속도',
+    buildMode: '건설',
+    playMode: '시작',
     
     // 경고 메시지
     highwayCannotCrossRiver: '고속도로는 강을 건널 수 없습니다.',
@@ -140,6 +160,13 @@ const translations: Record<Language, Translations> = {
     shop: '상점',
     buy: '구매',
     notEnoughMoney: '자금이 부족합니다!',
+    
+    // 건물
+    home: '집',
+    office: '회사',
+    roads: '도로',
+    upgrade: '업그레이드',
+    maxLevel: '최대 레벨',
   }
 };
 

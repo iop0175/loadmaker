@@ -51,15 +51,15 @@ export function useIntersections() {
     });
   }, []);
 
-  /** 점이 건물 근처(연결점)에 있는지 확인 - 더 넓은 범위 */
+  /** 점이 건물 근처(연결점)에 있는지 확인 - 건물 연결점에서만 교차로 제외 */
   const isNearBuilding = useCallback((point: Point, buildings: Building[]): boolean => {
     return buildings.some(building => {
       const isHome = building.id.includes('-home');
       const width = isHome ? 36 : 40;
       const height = isHome ? 30 : 50;
       
-      // 건물 영역 + 50px 여백 (도로 연결점 포함 - 더 넓게)
-      const margin = 50;
+      // 건물 영역 + 25px 여백 (도로 연결점 포함 - 50에서 25로 줄임)
+      const margin = 25;
       const left = building.position.x - width / 2 - margin;
       const right = building.position.x + width / 2 + margin;
       const top = building.position.y - height / 2 - margin;
@@ -150,6 +150,7 @@ export function useIntersections() {
         const road1 = roadList[i];
         const road2 = roadList[j];
         
+        // 직선 도로 간 교차 감지
         if (!road1.controlPoint && !road2.controlPoint) {
           const intersection = getLineIntersection(
             road1.start, road1.end,
@@ -159,6 +160,26 @@ export function useIntersections() {
             if (!result.some(r => 
               Math.abs(r.point.x - intersection.x) < 5 && 
               Math.abs(r.point.y - intersection.y) < 5
+            )) {
+              result.push({ point: intersection, vehicleCount: 0 });
+            }
+          }
+        }
+        
+        // 곡선 도로와 직선 도로 간 교차 감지 (간략화: 곡선을 직선으로 근사)
+        if ((road1.controlPoint && !road2.controlPoint) || (!road1.controlPoint && road2.controlPoint)) {
+          const curveRoad = road1.controlPoint ? road1 : road2;
+          const lineRoad = road1.controlPoint ? road2 : road1;
+          
+          // 곡선의 시작-끝을 직선으로 근사하여 교차 검사
+          const intersection = getLineIntersection(
+            curveRoad.start, curveRoad.end,
+            lineRoad.start, lineRoad.end
+          );
+          if (intersection && !isPointOnBuilding(intersection, buildings) && !isNearBuilding(intersection, buildings)) {
+            if (!result.some(r => 
+              Math.abs(r.point.x - intersection.x) < 8 && 
+              Math.abs(r.point.y - intersection.y) < 8
             )) {
               result.push({ point: intersection, vehicleCount: 0 });
             }

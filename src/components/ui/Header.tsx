@@ -25,7 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   const t = getTranslations(language);
   
   return (
-    <div className="w-full max-w-[1000px] flex flex-col sm:flex-row justify-between items-center sm:items-end mb-3 sm:mb-6 gap-2 sm:gap-0">
+    <div className="w-full max-w-[1000px] flex flex-col sm:flex-row justify-between items-center sm:items-end mb-3 sm:mb-6 gap-2 sm:gap-0 pt-safe safe-top-margin">
       <div className="text-center sm:text-left">
         <div className="flex items-center justify-center sm:justify-start gap-2 sm:gap-3">
           <h1 className="text-2xl sm:text-4xl font-black text-slate-800 tracking-tighter mb-0.5 sm:mb-1">

@@ -29,9 +29,12 @@ import {
   HUD, 
   GameOverOverlay, 
   RoadPopover,
+  BuildingPopover,
+  getUpgradeCost,
   WarningMessage,
   Shop,
 } from './ui';
+import type { Building } from '../types';
 
 // 모바일 감지 함수 - 화면 크기에 따라 초기 줌 설정
 const getInitialZoom = (): number => {
@@ -59,6 +62,8 @@ const RoadGame: React.FC = () => {
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 }); // 맵 이동 오프셋
   const isPanningRef = useRef(false);
   const [isShopOpen, setIsShopOpen] = useState(false);
+  const [selectedBuilding, setSelectedBuilding] = useState<Building | null>(null);
+  const [isBuildMode, setIsBuildMode] = useState(false); // 빌드 모드 (도로 건설/아이템 사용)
   const lastPanPosRef = useRef({ x: 0, y: 0 });
 
   // 게임 상태 훅
@@ -83,6 +88,7 @@ const RoadGame: React.FC = () => {
     mapSize,
     riverSegments,
     buildings,
+    setBuildings,
     roads,
     setRoads,
     intersections,
@@ -146,6 +152,140 @@ const RoadGame: React.FC = () => {
       }
     }
   }, [score, setScore, setBridgeCount, setHighwayCount]);
+
+  // 빌드 모드 토글 (도로 건설 모드)
+  const toggleBuildMode = useCallback(() => {
+    setIsBuildMode(prev => {
+      const newMode = !prev;
+      // 빌드 모드 진입 시 일시정지, 빌드 모드 종료 시 재개
+      setIsPaused(newMode);
+      // 빌드 모드 종료 시 도구 초기화
+      if (!newMode) {
+        setActiveTool('normal');
+        setSelectedBuilding(null);
+        setSelectedRoad(null);
+      }
+      return newMode;
+    });
+  }, [setIsPaused, setActiveTool, setSelectedRoad]);
+
+  // 건물에 연결된 도로 개수 계산
+  const getConnectedRoadCount = useCallback((buildingId: string): number => {
+    const building = buildings.find(b => b.id === buildingId);
+    if (!building) return 0;
+    
+    return roads.filter(road => {
+      const startDist = distance(road.start, building.position);
+      const endDist = distance(road.end, building.position);
+      return startDist < 30 || endDist < 30;
+    }).length;
+  }, [buildings, roads]);
+
+  // 건물 업그레이드 핸들러
+  const handleBuildingUpgrade = useCallback(() => {
+    if (!selectedBuilding) return;
+    
+    const currentLevel = selectedBuilding.upgradeLevel || 1;
+    const upgradeCost = getUpgradeCost(currentLevel);
+    
+    if (score >= upgradeCost) {
+      setScore(prev => prev - upgradeCost);
+      setBuildings(prev => prev.map(b => 
+        b.id === selectedBuilding.id 
+          ? { ...b, upgradeLevel: currentLevel + 1 }
+          : b
+      ));
+      // 업그레이드 후 선택된 건물 정보 업데이트
+      setSelectedBuilding(prev => prev ? { ...prev, upgradeLevel: currentLevel + 1 } : null);
+    }
+  }, [selectedBuilding, score, setScore, setBuildings]);
+
+  // 캔버스 마우스 다운 래퍼 (모드에 따른 동작 분기)
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = e.target as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const rawPoint = { 
+      x: (e.clientX - rect.left) * scaleX, 
+      y: (e.clientY - rect.top) * scaleY 
+    };
+    
+    // 빌드 모드가 아닐 때 (일반 모드) - 건물 클릭만 허용
+    if (!isBuildMode) {
+      const clickedBuilding = buildings.find(b => distance(rawPoint, b.position) < 30);
+      
+      if (clickedBuilding) {
+        setSelectedBuilding(clickedBuilding);
+        setSelectedRoad(null);
+      } else {
+        setSelectedBuilding(null);
+      }
+      return; // 일반 모드에서는 도로 그리기 불가
+    }
+    
+    // 빌드 모드 - pan 도구일 때만 건물 클릭 체크
+    if (activeTool === 'pan') {
+      const clickedBuilding = buildings.find(b => distance(rawPoint, b.position) < 30);
+      
+      if (clickedBuilding) {
+        setSelectedBuilding(clickedBuilding);
+        setSelectedRoad(null);
+        return;
+      }
+    }
+    
+    // 건물 선택 해제
+    setSelectedBuilding(null);
+    
+    // 빌드 모드에서 도로 그리기 핸들러 호출
+    handleMouseDown(e);
+  }, [isBuildMode, activeTool, buildings, handleMouseDown, setSelectedRoad]);
+
+  // 캔버스 터치 시작 래퍼 (모드에 따른 동작 분기)
+  const handleCanvasTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    const canvas = e.target as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const rawPoint = { 
+      x: (touch.clientX - rect.left) * scaleX, 
+      y: (touch.clientY - rect.top) * scaleY 
+    };
+    
+    // 빌드 모드가 아닐 때 (일반 모드) - 건물 클릭만 허용
+    if (!isBuildMode) {
+      const clickedBuilding = buildings.find(b => distance(rawPoint, b.position) < 30);
+      
+      if (clickedBuilding) {
+        setSelectedBuilding(clickedBuilding);
+        setSelectedRoad(null);
+      } else {
+        setSelectedBuilding(null);
+      }
+      return; // 일반 모드에서는 도로 그리기 불가
+    }
+    
+    // 빌드 모드 - pan 도구일 때만 건물 클릭 체크
+    if (activeTool === 'pan') {
+      const clickedBuilding = buildings.find(b => distance(rawPoint, b.position) < 30);
+      
+      if (clickedBuilding) {
+        setSelectedBuilding(clickedBuilding);
+        setSelectedRoad(null);
+        return;
+      }
+    }
+    
+    // 건물 선택 해제
+    setSelectedBuilding(null);
+    
+    // 빌드 모드에서 도로 그리기 핸들러 호출
+    handleTouchStart(e);
+  }, [isBuildMode, activeTool, buildings, handleTouchStart, setSelectedRoad]);
 
   // 마우스 휠로 줌 조절 - useEffect로 non-passive 이벤트 등록
   useEffect(() => {
@@ -615,15 +755,28 @@ const RoadGame: React.FC = () => {
         const houseHeight = 30;
         const roofHeight = 15;
         
-        // 새 건물 펄스 애니메이션
+        // 새 건물 펄스 애니메이션 (건물 모양 하이라이트)
         if (isNewBuilding) {
-          const pulse = 1 + Math.sin(age / 150) * 0.15;
-          const alpha = 0.5 + Math.sin(age / 200) * 0.3;
+          const pulse = 1 + Math.sin(age / 150) * 0.1;
+          const alpha = 0.6 + Math.sin(age / 200) * 0.4;
           
+          ctx.save();
+          ctx.strokeStyle = `rgba(34, 197, 94, ${alpha})`; // 초록색
+          ctx.lineWidth = 4 * pulse;
+          ctx.shadowColor = '#22c55e';
+          ctx.shadowBlur = 15 * pulse;
+          
+          // 집 본체 하이라이트
+          ctx.strokeRect(cx - houseWidth/2 - 5, cy - houseHeight/2 - 5, houseWidth + 10, houseHeight + 10);
+          
+          // 지붕 하이라이트
           ctx.beginPath();
-          ctx.arc(cx, cy, 40 * pulse, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${isHome ? '34, 197, 94' : '59, 130, 246'}, ${alpha})`;
-          ctx.fill();
+          ctx.moveTo(cx - houseWidth/2 - 10, cy - houseHeight/2 - 5);
+          ctx.lineTo(cx, cy - houseHeight/2 - roofHeight - 7);
+          ctx.lineTo(cx + houseWidth/2 + 10, cy - houseHeight/2 - 5);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.restore();
         }
 
         ctx.fillStyle = building.color;
@@ -682,15 +835,20 @@ const RoadGame: React.FC = () => {
         const buildingWidth = 40;
         const buildingHeight = 50;
 
-        // 새 건물 펄스 애니메이션
+        // 새 건물 펄스 애니메이션 (건물 모양 하이라이트)
         if (isNewBuilding) {
-          const pulse = 1 + Math.sin(age / 150) * 0.15;
-          const alpha = 0.5 + Math.sin(age / 200) * 0.3;
+          const pulse = 1 + Math.sin(age / 150) * 0.1;
+          const alpha = 0.6 + Math.sin(age / 200) * 0.4;
           
-          ctx.beginPath();
-          ctx.arc(cx, cy, 45 * pulse, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(59, 130, 246, ${alpha})`;
-          ctx.fill();
+          ctx.save();
+          ctx.strokeStyle = `rgba(59, 130, 246, ${alpha})`; // 파란색
+          ctx.lineWidth = 4 * pulse;
+          ctx.shadowColor = '#3b82f6';
+          ctx.shadowBlur = 15 * pulse;
+          
+          // 회사 본체 하이라이트
+          ctx.strokeRect(cx - buildingWidth/2 - 5, cy - buildingHeight/2 - 5, buildingWidth + 10, buildingHeight + 10);
+          ctx.restore();
         }
 
         ctx.fillStyle = building.color;
@@ -737,6 +895,9 @@ const RoadGame: React.FC = () => {
       }
     });
 
+    // 선택된 건물 하이라이트 (주황색 건물 모양)
+    // 차량 렌더링 이후, 밤 모드 이후에 그려서 가장 위에 표시
+
     // 차량 렌더링
     vehicles.forEach(vehicle => {
       if (vehicle.status === 'at-office') return;
@@ -775,59 +936,93 @@ const RoadGame: React.FC = () => {
       });
     }
     
+    // 선택된 건물 하이라이트 (주황색 건물 모양) - 가장 마지막에 그려서 위에 표시
+    if (selectedBuilding) {
+      const building = buildings.find(b => b.id === selectedBuilding.id);
+      if (building) {
+        const isHome = building.id.includes('-home');
+        const cx = building.position.x;
+        const cy = building.position.y;
+        
+        ctx.strokeStyle = '#f97316'; // 주황색
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#f97316';
+        ctx.shadowBlur = 15;
+        
+        if (isHome) {
+          const houseWidth = 36;
+          const houseHeight = 30;
+          const roofHeight = 15;
+          
+          // 집 본체 하이라이트
+          ctx.strokeRect(cx - houseWidth/2 - 4, cy - houseHeight/2 - 4, houseWidth + 8, houseHeight + 8);
+          
+          // 지붕 하이라이트
+          ctx.beginPath();
+          ctx.moveTo(cx - houseWidth/2 - 9, cy - houseHeight/2 - 4);
+          ctx.lineTo(cx, cy - houseHeight/2 - roofHeight - 6);
+          ctx.lineTo(cx + houseWidth/2 + 9, cy - houseHeight/2 - 4);
+          ctx.closePath();
+          ctx.stroke();
+        } else {
+          const buildingWidth = 40;
+          const buildingHeight = 50;
+          
+          // 회사 본체 하이라이트
+          ctx.strokeRect(cx - buildingWidth/2 - 4, cy - buildingHeight/2 - 4, buildingWidth + 8, buildingHeight + 8);
+        }
+        
+        ctx.shadowBlur = 0;
+      }
+    }
+    
     ctx.restore();
 
   }, [
     roads, vehicles, isDrawing, drawStart, currentEnd, controlPoint, 
     intersections, riverSegments, buildings, doesRoadCrossRiver, doesCurveRoadCrossRiver,
-    doesRoadIntersectAnyBuilding, mapSize, zoom, selectedRoad, bridgeCount, isNightMode
+    doesRoadIntersectAnyBuilding, mapSize, zoom, selectedRoad, bridgeCount, isNightMode, selectedBuilding
   ]);
 
   return (
     <div className="h-screen h-dvh bg-slate-50 flex flex-col landscape-mode items-center justify-between p-1 sm:p-4 md:p-8 font-sans overflow-hidden pb-safe gap-1 sm:gap-2">
       {/* 가로 모드 사이드바 - 왼쪽 */}
-      <div className="hidden landscape-sidebar">
+      <div className="hidden landscape-sidebar pl-safe pt-safe">
         {/* 미니 스탯 */}
-        <div className="flex flex-col gap-1">
-          <div className="bg-white rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-center">
-            <span className="text-[10px] text-emerald-500">$</span>
-            <div className="text-sm font-bold text-emerald-600">{score}</div>
+        <div className="flex flex-col gap-2 safe-top-margin">
+          <div className="bg-white rounded-xl px-3 py-2 shadow-md border border-slate-200 text-center min-w-[70px]">
+            <span className="text-xs text-emerald-500 font-medium">$</span>
+            <div className="text-lg font-bold text-emerald-600">{score}</div>
           </div>
-          <div className="bg-white rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-center">
-            <span className="text-[10px] text-indigo-500">T</span>
-            <div className="text-sm font-bold text-indigo-600">{Math.floor(gameTime / 60)}:{String(gameTime % 60).padStart(2, '0')}</div>
+          <div className="bg-white rounded-xl px-3 py-2 shadow-md border border-slate-200 text-center min-w-[70px]">
+            <span className="text-xs text-indigo-500 font-medium">T</span>
+            <div className="text-lg font-bold text-indigo-600">{Math.floor(gameTime / 60)}:{String(gameTime % 60).padStart(2, '0')}</div>
           </div>
-          <div className="bg-white rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-center">
-            <span className="text-[10px] text-rose-500">X</span>
-            <div className={`text-sm font-bold ${destroyedCount > 0 ? 'text-rose-500' : 'text-slate-600'}`}>{destroyedCount}/3</div>
+          <div className="bg-white rounded-xl px-3 py-2 shadow-md border border-slate-200 text-center min-w-[70px]">
+            <span className="text-xs text-rose-500 font-medium">X</span>
+            <div className={`text-lg font-bold ${destroyedCount > 0 ? 'text-rose-500' : 'text-slate-600'}`}>{destroyedCount}/3</div>
           </div>
         </div>
         
         {/* 미니 컨트롤 */}
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           <button 
             onClick={startNewGame}
-            className="p-2 bg-blue-600 text-white rounded-lg text-xs font-bold"
+            className="px-3 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-transform"
           >
             NEW
           </button>
           <button 
-            onClick={() => setIsPaused(prev => !prev)}
-            className={`p-2 rounded-lg text-xs font-bold ${isPaused ? 'bg-amber-100 text-amber-700' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            {isPaused ? 'Play' : 'II'}
-          </button>
-          <button 
             onClick={() => setGameSpeed(prev => prev === 1 ? 2 : 1)}
-            className={`p-2 rounded-lg text-xs font-bold ${gameSpeed === 2 ? 'bg-emerald-100 text-emerald-700' : 'bg-white text-slate-600 border border-slate-200'}`}
+            className={`px-3 py-3 rounded-xl text-sm font-bold shadow-md transition-transform active:scale-95 ${gameSpeed === 2 ? 'bg-emerald-500 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             {gameSpeed}x
           </button>
           <button 
             onClick={() => setIsShopOpen(true)}
-            className="p-2 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold"
+            className="px-3 py-3 bg-amber-400 text-amber-900 rounded-xl text-sm font-bold shadow-md hover:bg-amber-500 active:scale-95 transition-transform"
           >
-            $
+            Shop
           </button>
         </div>
       </div>
@@ -846,13 +1041,13 @@ const RoadGame: React.FC = () => {
       {/* Toolbar - 세로 모드만 */}
       <div className="landscape-hide w-full flex justify-center px-2 shrink-0">
         <Toolbar
-          isPaused={isPaused}
+          isBuildMode={isBuildMode}
           gameSpeed={gameSpeed}
           isOrthoMode={isOrthoMode}
           isCurveMode={isCurveMode}
           language={language}
           onNewGame={startNewGame}
-          onTogglePause={() => setIsPaused(prev => !prev)}
+          onToggleBuildMode={toggleBuildMode}
           onToggleSpeed={() => setGameSpeed(prev => prev === 1 ? 2 : 1)}
           onOpenShop={() => setIsShopOpen(true)}
         />
@@ -883,11 +1078,11 @@ const RoadGame: React.FC = () => {
             ref={canvasRef}
             width={mapSize.width}
             height={mapSize.height}
-            onMouseDown={handleMouseDown}
+            onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
+            onTouchStart={handleCanvasTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             className="cursor-crosshair bg-white touch-none"
@@ -907,10 +1102,22 @@ const RoadGame: React.FC = () => {
               road={selectedRoad}
               mapWidth={mapSize.width}
               mapHeight={mapSize.height}
-              language={language}
-              onEdit={() => showWarning('Feature coming soon')}
               onDelete={() => deleteRoad(selectedRoad)}
               onClose={() => setSelectedRoad(null)}
+            />
+          )}
+          
+          {/* 건물 선택 팝오버 */}
+          {selectedBuilding && (
+            <BuildingPopover
+              building={selectedBuilding}
+              mapWidth={mapSize.width}
+              mapHeight={mapSize.height}
+              language={language}
+              score={score}
+              connectedRoadCount={getConnectedRoadCount(selectedBuilding.id)}
+              onUpgrade={handleBuildingUpgrade}
+              onClose={() => setSelectedBuilding(null)}
             />
           )}
           
@@ -952,12 +1159,13 @@ const RoadGame: React.FC = () => {
       )}
 
       {/* HUD - 세로 모드 */}
-      <div className="landscape-hide w-full flex justify-center shrink-0">
+      <div className="landscape-hide w-full flex justify-center shrink-0 mb-[env(safe-area-inset-bottom,0)] pb-2 sm:pb-0">
         <HUD
           activeTool={activeTool}
           bridgeCount={bridgeCount}
           highwayCount={highwayCount}
           language={language}
+          isBuildMode={isBuildMode}
           onToolChange={setActiveTool}
           zoom={zoom}
           onZoomIn={() => setZoom(prev => Math.min(1.5, prev + 0.25))}
@@ -966,69 +1174,98 @@ const RoadGame: React.FC = () => {
       </div>
 
       {/* HUD - 가로 모드 (오른쪽 사이드바) */}
-      <div className="hidden landscape-sidebar">
-        <div className="flex flex-col gap-1">
-          {/* Pan Tool */}
+      <div className="hidden landscape-sidebar pr-safe">
+        <div className="flex flex-col gap-2">
+          {/* 빌드 모드 토글 버튼 */}
           <button
-            onClick={() => setActiveTool('pan')}
-            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold ${
-              activeTool === 'pan' ? 'bg-slate-600 text-white' : 'bg-white text-slate-400 border border-slate-200'
+            onClick={toggleBuildMode}
+            className={`w-full py-3 px-2 rounded-xl flex flex-col items-center justify-center text-xs font-bold shadow-md transition-transform active:scale-95 ${
+              isBuildMode 
+                ? 'bg-orange-500 text-white animate-pulse' 
+                : 'bg-emerald-500 text-white'
             }`}
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
-            <span>이동</span>
+            {isBuildMode ? (
+              <>
+                <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+                <span>시작</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                <span>건설</span>
+              </>
+            )}
           </button>
-          {/* 도구 버튼들 */}
-          <button
-            onClick={() => setActiveTool('normal')}
-            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold ${
-              activeTool === 'normal' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-400 border border-slate-200'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2z" /></svg>
-            <span>도로</span>
-          </button>
-          <button
-            onClick={() => setActiveTool('bridge')}
-            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold relative ${
-              activeTool === 'bridge' ? 'bg-amber-600 text-white' : 'bg-white text-slate-400 border border-slate-200'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
-            <span>다리</span>
-            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">{bridgeCount}</span>
-          </button>
-          <button
-            onClick={() => setActiveTool('highway')}
-            className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-[8px] font-bold relative ${
-              activeTool === 'highway' ? 'bg-sky-500 text-white' : 'bg-white text-slate-400 border border-slate-200'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            <span>고속</span>
-            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center">{highwayCount}</span>
-          </button>
+          
+          {/* 빌드 모드일 때만 도구 버튼 표시 */}
+          {isBuildMode && (
+            <>
+              <div className="h-px w-12 bg-slate-200 self-center my-1" />
+              
+              {/* Pan Tool */}
+              <button
+                onClick={() => setActiveTool('pan')}
+                className={`w-full py-2 px-2 rounded-xl flex flex-col items-center justify-center text-xs font-bold shadow-md transition-transform active:scale-95 ${
+                  activeTool === 'pan' ? 'bg-slate-600 text-white' : 'bg-white text-slate-500 border border-slate-200'
+                }`}
+              >
+                <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" /></svg>
+                <span>이동</span>
+              </button>
+              {/* 도구 버튼들 */}
+              <button
+                onClick={() => setActiveTool('normal')}
+                className={`w-full py-2 px-2 rounded-xl flex flex-col items-center justify-center text-xs font-bold shadow-md transition-transform active:scale-95 ${
+                  activeTool === 'normal' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-500 border border-slate-200'
+                }`}
+              >
+                <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2z" /></svg>
+                <span>도로</span>
+              </button>
+              <button
+                onClick={() => setActiveTool('bridge')}
+                className={`w-full py-2 px-2 rounded-xl flex flex-col items-center justify-center text-xs font-bold shadow-md transition-transform active:scale-95 relative ${
+                  activeTool === 'bridge' ? 'bg-amber-600 text-white' : 'bg-white text-slate-500 border border-slate-200'
+                }`}
+              >
+                <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
+                <span>다리</span>
+                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{bridgeCount}</span>
+              </button>
+              <button
+                onClick={() => setActiveTool('highway')}
+                className={`w-full py-2 px-2 rounded-xl flex flex-col items-center justify-center text-xs font-bold shadow-md transition-transform active:scale-95 relative ${
+                  activeTool === 'highway' ? 'bg-sky-500 text-white' : 'bg-white text-slate-500 border border-slate-200'
+                }`}
+              >
+                <svg className="w-6 h-6 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                <span>고속</span>
+                <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{highwayCount}</span>
+              </button>
+            </>
+          )}
 
           {/* 구분선 */}
-          <div className="h-px w-10 bg-slate-200 self-center my-1" />
+          <div className="h-px w-12 bg-slate-200 self-center my-1" />
 
           {/* 줌 컨트롤 */}
           <button
             onClick={() => setZoom(prev => Math.min(1.5, prev + 0.25))}
             disabled={zoom >= 1.5}
-            className={`w-12 h-10 rounded-lg flex items-center justify-center text-lg font-bold ${
+            className={`w-full py-3 rounded-xl flex items-center justify-center text-xl font-bold shadow-md transition-transform active:scale-95 ${
               zoom >= 1.5 ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >
             +
           </button>
-          <div className="w-12 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-700">
+          <div className="w-full py-2 rounded-xl bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-700">
             {Math.round(zoom * 100)}%
           </div>
           <button
             onClick={() => setZoom(prev => Math.max(0.3, prev - 0.25))}
             disabled={zoom <= 0.3}
-            className={`w-12 h-10 rounded-lg flex items-center justify-center text-lg font-bold ${
+            className={`w-full py-3 rounded-xl flex items-center justify-center text-xl font-bold shadow-md transition-transform active:scale-95 ${
               zoom <= 0.3 ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >

@@ -208,12 +208,56 @@ function renderOffice(
 }
 
 /**
+ * 선택된 건물 하이라이트 렌더링 (건물 모양)
+ */
+function renderSelectionHighlight(
+  ctx: CanvasRenderingContext2D,
+  building: Building
+): void {
+  const cx = building.position.x;
+  const cy = building.position.y;
+  const isHome = building.id.includes('-home');
+  
+  ctx.save();
+  ctx.strokeStyle = '#f97316'; // 주황색
+  ctx.lineWidth = 3;
+  ctx.shadowColor = '#f97316';
+  ctx.shadowBlur = 10;
+  
+  if (isHome) {
+    const houseWidth = 36;
+    const houseHeight = 30;
+    const roofHeight = 15;
+    
+    // 집 본체 하이라이트
+    ctx.strokeRect(cx - houseWidth/2 - 3, cy - houseHeight/2 - 3, houseWidth + 6, houseHeight + 6);
+    
+    // 지붕 하이라이트
+    ctx.beginPath();
+    ctx.moveTo(cx - houseWidth/2 - 8, cy - houseHeight/2 - 3);
+    ctx.lineTo(cx, cy - houseHeight/2 - roofHeight - 5);
+    ctx.lineTo(cx + houseWidth/2 + 8, cy - houseHeight/2 - 3);
+    ctx.closePath();
+    ctx.stroke();
+  } else {
+    const buildingWidth = 42;
+    const buildingHeight = 52;
+    
+    // 회사 본체 하이라이트
+    ctx.strokeRect(cx - buildingWidth/2 - 3, cy - buildingHeight/2 - 3, buildingWidth + 6, buildingHeight + 6);
+  }
+  
+  ctx.restore();
+}
+
+/**
  * 모든 건물 렌더링
  */
 export function renderBuildings(
   ctx: CanvasRenderingContext2D, 
   buildings: Building[], 
-  vehicles: Vehicle[]
+  vehicles: Vehicle[],
+  selectedBuildingId?: string | null
 ): void {
   buildings.forEach(building => {
     const isHome = building.id.includes('-home');
@@ -222,6 +266,11 @@ export function renderBuildings(
       renderHome(ctx, building, vehicles);
     } else {
       renderOffice(ctx, building, vehicles);
+    }
+    
+    // 선택된 건물 하이라이트
+    if (selectedBuildingId && building.id === selectedBuildingId) {
+      renderSelectionHighlight(ctx, building);
     }
   });
 }

@@ -1,6 +1,6 @@
 /**
  * HUD Component
- * 도구 선택 바 (도로, 다리, 고속도로)
+ * 도구 선택 바 (도로, 다리, 고속도로) - 빌드 모드에서만 표시
  */
 
 import React from 'react';
@@ -14,6 +14,7 @@ interface HUDProps {
   bridgeCount: number;
   highwayCount: number;
   language: Language;
+  isBuildMode: boolean;
   onToolChange: (tool: ActiveTool) => void;
   // 줌 컨트롤
   zoom: number;
@@ -26,6 +27,7 @@ export const HUD: React.FC<HUDProps> = ({
   bridgeCount,
   highwayCount,
   language,
+  isBuildMode,
   onToolChange,
   zoom,
   onZoomIn,
@@ -33,9 +35,47 @@ export const HUD: React.FC<HUDProps> = ({
 }) => {
   const t = getTranslations(language);
   
+  // 빌드 모드가 아니면 줌 컨트롤만 표시
+  if (!isBuildMode) {
+    return (
+      <div className="mt-2 sm:mt-4 z-40 w-full flex justify-center safe-bottom-margin pb-safe">
+        <div className="flex bg-white/90 backdrop-blur-xl border-2 border-slate-200 ring-2 ring-slate-100 rounded-2xl sm:rounded-3xl shadow-2xl p-2 sm:p-3 gap-2 sm:gap-4">
+          {/* 줌 컨트롤 */}
+          <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 bg-slate-50 rounded-xl">
+            <button
+              onClick={onZoomOut}
+              disabled={zoom <= 0.3}
+              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all ${
+                zoom <= 0.3 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-white active:scale-95'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+              </svg>
+            </button>
+            <span className="text-xs sm:text-sm font-bold text-slate-700 min-w-[48px] text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={onZoomIn}
+              disabled={zoom >= 1.5}
+              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all ${
+                zoom >= 1.5 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-white active:scale-95'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <div className="mt-2 sm:mt-4 z-40 w-full flex justify-center">
-      <div className="flex bg-white/90 backdrop-blur-xl border-2 border-slate-200 ring-2 ring-slate-100 rounded-2xl sm:rounded-3xl shadow-2xl p-2 sm:p-3 gap-2 sm:gap-4">
+    <div className="mt-2 sm:mt-4 z-40 w-full flex justify-center safe-bottom-margin pb-safe">
+      <div className="flex bg-white/90 backdrop-blur-xl border-2 border-orange-300 ring-2 ring-orange-100 rounded-2xl sm:rounded-3xl shadow-2xl p-2 sm:p-3 gap-2 sm:gap-4">
         {/* Pan Tool */}
         <button
           onClick={() => onToolChange('pan')}

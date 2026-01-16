@@ -9,5 +9,6 @@ export { HUD } from './HUD';
 export type { ActiveTool } from './HUD';
 export { GameOverOverlay } from './GameOverOverlay';
 export { RoadPopover } from './RoadPopover';
+export { BuildingPopover, getUpgradeCost } from './BuildingPopover';
 export { WarningMessage } from './WarningMessage';
 export { Shop } from './Shop';

@@ -8,7 +8,7 @@ import type { Point, Road, Building, Intersection, RiverSegment } from '../types
 import type { Language } from '../i18n';
 import { getTranslations } from '../i18n';
 import type { ActiveTool } from '../components/ui';
-import { GRID_SIZE } from '../constants';
+import { GRID_SIZE, MAX_BRIDGE_LENGTH } from '../constants';
 import { distance, snapToGrid, doRoadsOverlap } from '../utils';
 import { useCollision } from './useCollision';
 import { useIntersections } from './useIntersections';
@@ -203,19 +203,22 @@ export function useRoadDrawing({
     return false;
   }, [roads]);
 
-  /** 건물에 이미 도로가 연결되어 있는지 확인 (1개만 허용) */
+  /** 건물에 이미 최대 도로가 연결되어 있는지 확인 (upgradeLevel에 따라 허용) */
   const isBuildingAlreadyConnected = useCallback((point: Point): boolean => {
     // 점이 건물 위치인지 확인
     const building = buildings.find(b => distance(point, b.position) < 5);
     if (!building) return false;
+    
+    // 건물의 최대 도로 연결 수 (업그레이드 레벨 = 최대 도로 수)
+    const maxRoads = building.upgradeLevel || 1;
     
     // 이 건물에 연결된 도로 수 세기
     const connectedRoads = roads.filter(r => 
       distance(r.start, building.position) < 5 || distance(r.end, building.position) < 5
     );
     
-    // 이미 1개 이상의 도로가 연결되어 있으면 추가 연결 불가
-    return connectedRoads.length >= 1;
+    // 최대 도로 수에 도달하면 추가 연결 불가
+    return connectedRoads.length >= maxRoads;
   }, [roads, buildings]);
 
   /** 클릭한 위치의 도로 찾기 */
@@ -359,7 +362,6 @@ export function useRoadDrawing({
     // 다리 모드 길이 제한
     if (activeTool === 'bridge') {
       const dist = distance(drawStart, point);
-      const MAX_BRIDGE_LENGTH = 120;
       if (dist > MAX_BRIDGE_LENGTH) {
         const dx = point.x - drawStart.x;
         const dy = point.y - drawStart.y;
@@ -681,7 +683,6 @@ export function useRoadDrawing({
     // 다리 모드 길이 제한
     if (activeTool === 'bridge') {
       const dist = distance(drawStart, point);
-      const MAX_BRIDGE_LENGTH = 120;
       if (dist > MAX_BRIDGE_LENGTH) {
         const dx = point.x - drawStart.x;
         const dy = point.y - drawStart.y;

@@ -110,6 +110,7 @@ export function useGameState(): GameStateReturn {
   const [highwayCount, setHighwayCount] = useState(1);
   const [activeTool, setActiveTool] = useState<ActiveTool>('normal');
   const [destroyedCount, setDestroyedCount] = useState(0);
+  const destroyedBuildingIds = useRef<Set<string>>(new Set());
   const [isGameOver, setIsGameOver] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [gameSpeed, setGameSpeed] = useState(1);
@@ -138,6 +139,7 @@ export function useGameState(): GameStateReturn {
     setHighwayCount(1);
     setActiveTool('normal');
     setDestroyedCount(0);
+    destroyedBuildingIds.current.clear();
     setIsGameOver(false);
     setIsPaused(false);
   }, []);
@@ -153,10 +155,50 @@ export function useGameState(): GameStateReturn {
 
   // 게임 오버 체크
   useEffect(() => {
-    if (destroyedCount >= 3 && !isGameOver) {
+    if (isGameOver) return;
+    
+    // 조건 1: 파괴된 건물 3개 이상
+    if (destroyedCount >= 3) {
       setIsGameOver(true);
+      return;
     }
-  }, [destroyedCount, isGameOver]);
+    
+    // 조건 2: 맵에 건물이 하나도 없음
+    if (buildings.length === 0) {
+      setIsGameOver(true);
+      return;
+    }
+    
+    // 조건 3: 같은 색상의 집 또는 회사 중 하나만 남은 경우 (짝이 없음)
+    const homes = buildings.filter(b => b.id.includes('home'));
+    const offices = buildings.filter(b => b.id.includes('office'));
+    
+    // 집이 있지만 회사가 하나도 없음
+    if (homes.length > 0 && offices.length === 0) {
+      setIsGameOver(true);
+      return;
+    }
+    
+    // 회사가 있지만 집이 하나도 없음
+    if (offices.length > 0 && homes.length === 0) {
+      setIsGameOver(true);
+      return;
+    }
+    
+    // 각 색상별로 체크: 같은 색상의 집과 회사가 모두 있어야 게임 진행 가능
+    // 모든 색상에서 짝이 없으면 게임 오버
+    const homeColors = new Set(homes.map(b => b.color));
+    const officeColors = new Set(offices.map(b => b.color));
+    
+    // 집과 회사 색상의 교집합 (짝을 이룰 수 있는 색상)
+    const matchingColors = [...homeColors].filter(color => officeColors.has(color));
+    
+    // 짝을 이룰 수 있는 색상이 하나도 없으면 게임 오버
+    if (homes.length > 0 && offices.length > 0 && matchingColors.length === 0) {
+      setIsGameOver(true);
+      return;
+    }
+  }, [destroyedCount, isGameOver, buildings]);
 
   // 시간에 따른 건물 추가 생성
   useEffect(() => {
@@ -287,7 +329,12 @@ export function useGameState(): GameStateReturn {
 
         const removed = mapped.filter(b => !kept.includes(b));
         if (removed.length > 0) {
-          setTimeout(() => setDestroyedCount(c => c + removed.length), 0);
+          // 이미 파괴된 건물은 중복 카운트하지 않음
+          const newlyDestroyed = removed.filter(b => !destroyedBuildingIds.current.has(b.id));
+          if (newlyDestroyed.length > 0) {
+            newlyDestroyed.forEach(b => destroyedBuildingIds.current.add(b.id));
+            setTimeout(() => setDestroyedCount(c => c + newlyDestroyed.length), 0);
+          }
         }
 
         return kept;

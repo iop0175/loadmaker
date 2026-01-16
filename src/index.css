@@ -64,9 +64,19 @@ body {
     height: 100dvh;
     overflow: hidden;
     padding-top: env(safe-area-inset-top, 0);
-    padding-bottom: env(safe-area-inset-bottom, 0);
+    padding-bottom: calc(env(safe-area-inset-bottom, 0) + 60px); /* Safari 툴바 높이 추가 */
     padding-left: env(safe-area-inset-left, 0);
     padding-right: env(safe-area-inset-right, 0);
+  }
+  
+  /* HUD가 Safari 툴바 위에 표시되도록 추가 여백 */
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 50px) !important;
+  }
+  
+  /* 세로 모드에서 HUD 컨테이너 하단 여백 */
+  .safe-bottom-margin {
+    margin-bottom: max(env(safe-area-inset-bottom, 0px), 50px) !important;
   }
 }
 
@@ -105,9 +115,10 @@ body {
     flex-direction: column;
     justify-content: space-between;
     height: 100%;
-    min-width: 60px;
-    max-width: 80px;
+    min-width: 80px;
+    max-width: 100px;
     flex-shrink: 0;
+    padding: 4px;
   }
   
   .landscape-main {
@@ -151,4 +162,34 @@ canvas {
 /* Safe area padding for notch devices */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0);
+}
+
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* iOS 노치/다이나믹 아일랜드 영역 확보 */
+.safe-area-all {
+  padding-top: env(safe-area-inset-top, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: env(safe-area-inset-left, 0);
+  padding-right: env(safe-area-inset-right, 0);
+}
+
+/* 상단 UI 요소에 노치 영역 여백 추가 */
+.safe-top-margin {
+  margin-top: max(env(safe-area-inset-top, 0px), 4px);
+}
+
+/* 하단 UI 요소에 홈 인디케이터 영역 여백 추가 */
+.safe-bottom-margin {
+  margin-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
 }

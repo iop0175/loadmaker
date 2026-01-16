@@ -1,19 +1,15 @@
 /**
  * RoadPopover Component
- * 도로 선택 시 표시되는 팝오버 (편집/삭제)
+ * 도로 선택 시 표시되는 팝오버 (삭제)
  */
 
 import React from 'react';
 import type { Road } from '../../types';
-import type { Language } from '../../i18n';
-import { getTranslations } from '../../i18n';
 
 interface RoadPopoverProps {
   road: Road;
   mapWidth: number;
   mapHeight: number;
-  language: Language;
-  onEdit: () => void;
   onDelete: () => void;
   onClose: () => void;
 }
@@ -22,12 +18,9 @@ export const RoadPopover: React.FC<RoadPopoverProps> = ({
   road,
   mapWidth,
   mapHeight,
-  language,
-  onEdit,
   onDelete,
   onClose,
 }) => {
-  const t = getTranslations(language);
   
   // 팝오버 위치 계산 (백분율로 변환)
   let cx, cy;
@@ -49,19 +42,7 @@ export const RoadPopover: React.FC<RoadPopoverProps> = ({
       className="absolute z-10 p-2 pointer-events-none" 
       style={{ left: `${leftPercent}%`, top: `${topPercent}%`, transform: 'translate(-50%, -100%)' }}
     >
-      <div className="flex bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden divide-x divide-slate-100 pointer-events-auto">
-        <button 
-          onClick={(e) => { 
-            e.stopPropagation(); 
-            onEdit();
-          }}
-          className="px-3 py-2 text-slate-400 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-          title={t.featureComingSoon}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-          </svg>
-        </button>
+      <div className="flex bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden pointer-events-auto">
         <button 
           onClick={(e) => {
             e.stopPropagation();
