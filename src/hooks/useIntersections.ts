@@ -35,7 +35,7 @@ export function useIntersections() {
     return buildings.some(building => {
       const isHome = building.id.includes('-home');
       const width = isHome ? 36 : 40;
-      const height = isHome ? 50 : 50;
+      const height = isHome ? 30 : 50;
       
       const left = building.position.x - width / 2 - 5;
       const right = building.position.x + width / 2 + 5;
@@ -51,7 +51,7 @@ export function useIntersections() {
     return buildings.some(building => {
       const isHome = building.id.includes('-home');
       const width = isHome ? 36 : 40;
-      const height = isHome ? 50 : 50;
+      const height = isHome ? 30 : 50;
       
       // 건물 영역 + 30px 여백 (도로 연결점 포함)
       const left = building.position.x - width / 2 - 30;

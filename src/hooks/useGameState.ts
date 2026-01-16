@@ -33,6 +33,7 @@ interface GameStateReturn {
   setIsPaused: React.Dispatch<React.SetStateAction<boolean>>;
   gameSpeed: number;
   setGameSpeed: React.Dispatch<React.SetStateAction<number>>;
+  isNightMode: boolean;
   
   // 아이템
   bridgeCount: number;
@@ -115,6 +116,10 @@ export function useGameState(): GameStateReturn {
   const [isGameOver, setIsGameOver] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [gameSpeed, setGameSpeed] = useState(1);
+
+  // 낮/밤 모드 (3분마다 전환, 게임 시간 기준)
+  const DAY_NIGHT_CYCLE = 180; // 3분 = 180초
+  const isNightMode = Math.floor(gameTime / DAY_NIGHT_CYCLE) % 2 === 1;
 
   // 새 게임 시작
   const startNewGame = useCallback(() => {
@@ -306,6 +311,7 @@ export function useGameState(): GameStateReturn {
     setIsPaused,
     gameSpeed,
     setGameSpeed,
+    isNightMode,
     bridgeCount,
     setBridgeCount,
     highwayCount,

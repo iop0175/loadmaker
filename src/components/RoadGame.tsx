@@ -71,6 +71,7 @@ const RoadGame: React.FC = () => {
     setIsPaused,
     gameSpeed,
     setGameSpeed,
+    isNightMode,
     bridgeCount,
     setBridgeCount,
     highwayCount,
@@ -292,8 +293,18 @@ const RoadGame: React.FC = () => {
     ctx.save();
     // CSS transform으로 줌 처리하므로 캔버스 스케일은 1로 유지
 
+    // 낮/밤 테마 색상
+    const theme = {
+      background: isNightMode ? '#1a1a2e' : '#f5f5f4',
+      river: isNightMode ? '#1e3a5f' : '#7dd3fc',
+      road: isNightMode ? '#4a5568' : '#9ca3af',
+      roadStripe: isNightMode ? '#a0aec0' : '#ffffff',
+      text: isNightMode ? '#e2e8f0' : '#1f2937',
+      building: isNightMode ? 0.7 : 1.0, // 건물 색상 밝기
+    };
+
     // 배경
-    ctx.fillStyle = '#f5f5f4';
+    ctx.fillStyle = theme.background;
     ctx.fillRect(0, 0, mapSize.width, mapSize.height);
 
     // 강 렌더링
@@ -305,7 +316,7 @@ const RoadGame: React.FC = () => {
       const deltaY = Math.abs(lastSeg.y - firstSeg.y);
       const isVertical = deltaY > deltaX;
 
-      ctx.fillStyle = '#7dd3fc';
+      ctx.fillStyle = theme.river;
       ctx.beginPath();
       
       if (isVertical) {
@@ -379,7 +390,7 @@ const RoadGame: React.FC = () => {
 
     // 교차점 외곽선
     intersections.forEach(intersection => {
-      ctx.fillStyle = '#9ca3af';
+      ctx.fillStyle = theme.road;
       ctx.beginPath();
       ctx.arc(intersection.point.x, intersection.point.y, 16, 0, Math.PI * 2);
       ctx.fill();
@@ -388,7 +399,8 @@ const RoadGame: React.FC = () => {
     // 도로 본체
     ctx.lineWidth = ROAD_WIDTH;
     roads.forEach(road => {
-      ctx.strokeStyle = road.isBridge ? '#d4a373' : (road.type === 'highway' ? '#93c5fd' : '#ffffff');
+      const baseColor = road.isBridge ? '#d4a373' : (road.type === 'highway' ? '#93c5fd' : theme.roadStripe);
+      ctx.strokeStyle = baseColor;
       ctx.beginPath();
       ctx.moveTo(road.start.x, road.start.y);
       if (road.controlPoint) {
@@ -401,7 +413,7 @@ const RoadGame: React.FC = () => {
 
     // 교차점 본체
     intersections.forEach(intersection => {
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = theme.roadStripe;
       ctx.beginPath();
       ctx.arc(intersection.point.x, intersection.point.y, 14, 0, Math.PI * 2);
       ctx.fill();
@@ -642,7 +654,7 @@ const RoadGame: React.FC = () => {
         const activeCount = vehicles.filter(v => v.fromBuilding === building.id).length;
         const remainingCount = Math.max(0, MAX_VEHICLES_PER_HOME - activeCount);
         
-        ctx.fillStyle = '#1f2937';
+        ctx.fillStyle = theme.text;
         ctx.fillText(`P:${remainingCount}`, cx, cy - houseHeight/2 - roofHeight - 4);
         
         if (timeLeft < 30000) { 
@@ -688,7 +700,7 @@ const RoadGame: React.FC = () => {
         
         const parkedCount = vehicles.filter(v => v.toBuilding === building.id && v.status === 'at-office').length;
         
-        ctx.fillStyle = '#1f2937';
+        ctx.fillStyle = theme.text;
         ctx.fillText(`P ${parkedCount}/${MAX_VEHICLES_PER_OFFICE}`, cx, cy - buildingHeight/2 - 4);
 
         if (timeLeft < 30000) {
@@ -731,13 +743,30 @@ const RoadGame: React.FC = () => {
         ctx.fillText('H', vehicle.position.x, vehicle.position.y);
       }
     });
+
+    // 밤 모드일 때 어두운 오버레이 추가
+    if (isNightMode) {
+      ctx.fillStyle = 'rgba(0, 0, 20, 0.3)';
+      ctx.fillRect(0, 0, mapSize.width, mapSize.height);
+      
+      // 건물에 불빛 효과
+      buildings.forEach(building => {
+        const cx = building.position.x;
+        const cy = building.position.y;
+        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+        gradient.addColorStop(0, 'rgba(255, 230, 150, 0.3)');
+        gradient.addColorStop(1, 'rgba(255, 230, 150, 0)');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(cx - 30, cy - 30, 60, 60);
+      });
+    }
     
     ctx.restore();
 
   }, [
     roads, vehicles, isDrawing, drawStart, currentEnd, controlPoint, 
     intersections, riverSegments, buildings, doesRoadCrossRiver, doesCurveRoadCrossRiver,
-    doesRoadIntersectAnyBuilding, mapSize, zoom, selectedRoad, bridgeCount
+    doesRoadIntersectAnyBuilding, mapSize, zoom, selectedRoad, bridgeCount, isNightMode
   ]);
 
   return (
