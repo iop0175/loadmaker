@@ -168,13 +168,20 @@ export function useGameState(): GameStateReturn {
       setMapSize({ width: 1000, height: 750 });
     }
 
-    // 시간 기반 건물 생성 (초 단위)
-    // 60초마다 새 건물 쌍 추가 (최대 5쌍까지)
-    const TIME_THRESHOLDS = [60, 120, 180, 240]; // 1분, 2분, 3분, 4분
+    // 시간 기반 건물 생성 (시간이 갈수록 점점 빨라짐)
+    // 첫 번째: 60초, 두 번째: 105초, 세 번째: 140초, 네 번째: 165초
+    const getTimeThreshold = (pairIndex: number) => {
+      // 누적 시간: 60, 105, 140, 165초... (간격이 60, 45, 35, 25초...)
+      let total = 0;
+      for (let i = 0; i <= pairIndex; i++) {
+        total += Math.max(20, 60 - (i * 15)); // 첫 번째 60초, 두 번째 45초, 세 번째 35초...
+      }
+      return total;
+    };
     
     if (basePairsCount < 5) {
       if (basePairsCount > 0) {
-        const nextThreshold = TIME_THRESHOLDS[basePairsCount - 1];
+        const nextThreshold = getTimeThreshold(basePairsCount - 1);
         if (gameTime >= nextThreshold) {
           const newPair = generateBuildingPair(
             basePairsCount,
@@ -188,11 +195,14 @@ export function useGameState(): GameStateReturn {
         }
       }
     } else {
-      // 5쌍 이후에는 2분마다 집 추가, 4분마다 회사 추가
-      const baseTime = 240; // 4분 기준
+      // 5쌍 이후에는 시간에 따라 간격이 점점 줄어듦
+      const baseTime = getTimeThreshold(3); // 4번째 건물쌍 생성 시간
       const extraTime = Math.max(0, gameTime - baseTime);
       
-      const targetHomes = 5 + Math.floor(extraTime / 120); // 2분마다 집 1개
+      // 시간이 갈수록 간격 감소 (120초 -> 90초 -> 60초... 최소 30초)
+      const currentExtraHomes = buildings.filter(b => b.id.includes('home')).length - 5;
+      const homeInterval = Math.max(30, 120 - (currentExtraHomes * 30)); // 2분, 1.5분, 1분... 최소 30초
+      const targetHomes = 5 + Math.floor(extraTime / homeInterval);
       const currentHomes = buildings.filter(b => b.id.includes('home')).length;
       
       if (targetHomes > currentHomes) {
@@ -208,7 +218,10 @@ export function useGameState(): GameStateReturn {
         setBuildings(prev => [...prev, newHome]);
       }
       
-      const targetOffices = 5 + Math.floor(extraTime / 240); // 4분마다 회사 1개
+      // 회사도 마찬가지로 간격 감소
+      const currentExtraOffices = buildings.filter(b => b.id.includes('office')).length - 5;
+      const officeInterval = Math.max(45, 180 - (currentExtraOffices * 45)); // 3분, 2.25분, 1.5분... 최소 45초
+      const targetOffices = 5 + Math.floor(extraTime / officeInterval);
       const currentOffices = buildings.filter(b => b.id.includes('office')).length;
       
       if (targetOffices > currentOffices) {

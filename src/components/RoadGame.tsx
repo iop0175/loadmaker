@@ -643,7 +643,7 @@ const RoadGame: React.FC = () => {
         const remainingCount = Math.max(0, MAX_VEHICLES_PER_HOME - activeCount);
         
         ctx.fillStyle = '#1f2937';
-        ctx.fillText(`🅿️ ${remainingCount}`, cx, cy - houseHeight/2 - roofHeight - 4);
+        ctx.fillText(`P:${remainingCount}`, cx, cy - houseHeight/2 - roofHeight - 4);
         
         if (timeLeft < 30000) { 
           const ringY = cy - houseHeight/2 - roofHeight - 16;
@@ -728,7 +728,7 @@ const RoadGame: React.FC = () => {
         ctx.font = 'bold 8px system-ui';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('⌂', vehicle.position.x, vehicle.position.y);
+        ctx.fillText('H', vehicle.position.x, vehicle.position.y);
       }
     });
     
@@ -755,7 +755,7 @@ const RoadGame: React.FC = () => {
             <div className="text-sm font-bold text-indigo-600">{Math.floor(gameTime / 60)}:{String(gameTime % 60).padStart(2, '0')}</div>
           </div>
           <div className="bg-white rounded-lg px-2 py-1 shadow-sm border border-slate-200 text-center">
-            <span className="text-[10px] text-rose-500">💥</span>
+            <span className="text-[10px] text-rose-500">X</span>
             <div className={`text-sm font-bold ${destroyedCount > 0 ? 'text-rose-500' : 'text-slate-600'}`}>{destroyedCount}/3</div>
           </div>
         </div>
@@ -766,7 +766,7 @@ const RoadGame: React.FC = () => {
             onClick={startNewGame}
             className="p-2 bg-blue-600 text-white rounded-lg text-xs font-bold"
           >
-            🔄
+            NEW
           </button>
           <button 
             onClick={() => setIsPaused(prev => !prev)}
