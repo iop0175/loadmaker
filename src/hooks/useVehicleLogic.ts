@@ -38,7 +38,6 @@ interface UseVehicleLogicProps {
 export function useVehicleLogic({
   buildings,
   roads,
-  vehicles,
   setVehicles,
   vehiclesRef,
   intersections,
