@@ -64,7 +64,7 @@ const RoadGame: React.FC = () => {
   const vehicleCanvasRef = useRef<HTMLCanvasElement>(null); // 차량
   // const uiCanvasRef = useRef<HTMLCanvasElement>(null);      // UI (프리뷰, 선택)
   // const canvasRef = vehicleCanvasRef; // 기존 이벤트 핸들러 호환성
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(getInitialZoom); // 모바일: 40%, 데스크톱: 75%
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 }); // 맵 이동 오프셋
@@ -74,6 +74,8 @@ const RoadGame: React.FC = () => {
   const [isBuildMode, setIsBuildMode] = useState(true); // 빌드 모드 (도로 건설/아이템 사용) - 처음엔 빌드 모드로 시작
   const [showTutorial, setShowTutorial] = useState(true); // 튜토리얼 표시 여부
   const lastPanPosRef = useRef({ x: 0, y: 0 });
+
+  // ...existing code...
 
   // 게임 상태 훅
   const gameState = useGameState();
@@ -113,6 +115,20 @@ const RoadGame: React.FC = () => {
     showWarning,
     startNewGame,
   } = gameState;
+
+  // 'b' 키로 빌드 모드 진입
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'b' || e.key === 'B') && !isBuildMode) {
+        setIsBuildMode(true);
+        setIsPaused(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isBuildMode, setIsBuildMode, setIsPaused]);
 
   // 도로 그리기 훅
   const roadDrawing = useRoadDrawing({
